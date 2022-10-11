@@ -177,6 +177,7 @@ imgs
 *.pb
 *.data*
 *.index
+*.png
 event_utils/
 MH_files/
 

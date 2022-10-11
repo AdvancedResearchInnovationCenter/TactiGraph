@@ -20,6 +20,7 @@ from torch_geometric.data import DataLoader
 from collections.abc import Sequence
 
 import os.path as osp
+from pathlib import Path
 
 import torch
 from torch_geometric.data import Dataset
@@ -104,6 +105,7 @@ def files_exist(files):
 
 class TactileDataset(Dataset):
     def __init__(self, root, transform=None, pre_transform=None):
+        root = Path(root)
         super(TactileDataset, self).__init__(root, transform, pre_transform)
         self._indices = None
         
@@ -140,6 +142,7 @@ class TactileDataset(Dataset):
         for raw_path in self.raw_paths:
             with open('data/raw/samples.json', 'r') as f:
                 samples = json.load(f)
+
             for sample_id in samples.keys():
                 events = np.array(samples[sample_id]['events'])
                 feature = torch.tensor(events[:, 3])
@@ -160,11 +163,7 @@ class TactileDataset(Dataset):
                 if self.pre_transform is not None:
                      data = self.pre_transform(data)
 
-                saved_name = raw_path.split('/')[-1].replace('.npz','.pt')
-                #torch.save(data, osp.join(self.processed_dir,"_sample_"+ str(sample1)+saved_name  ))
-                torch.save(data, osp.join(self.processed_dir, "sample_"+ str(sample1)+"_"+saved_name  ))
-
-                print("GRAPH DATA ARE SAVED!!!!!!!!!!!!!!!!!!!!!! in ", self.processed_dir)
+                torch.save(data, osp.join(self.processed_dir, sample_id +saved_name  ))
 
     def get(self, idx):
         # print("I'm in get ", self.processed_dir)
