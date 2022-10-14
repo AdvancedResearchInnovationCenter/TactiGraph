@@ -34,7 +34,6 @@ class ExtractContactCases:
         interpolate=True,
         time_frame=0.3e9,
         threshold=7500,
-        training_size=0.8
     ):
         self.outdir = Path(outdir)
         self.bag_file_name = bag_file_name
@@ -169,7 +168,6 @@ class ExtractContactCases:
             with open(self.outdir / sub_name / 'raw' / 'contact_cases.json', 'w') as f:
                 subset_samples = {}
                 for i, subset_idx in enumerate(subset):
-                    print(1)
                     sample = samples[subset_idx]
                     sample['total_idx'] = subset_idx
                     subset_samples[f'sample_{i+1}'] = sample
@@ -227,3 +225,16 @@ class ExtractContactCases:
         print("saving")
         self._save(samples)
         
+
+class nothresh(ExtractContactCases):
+    def __init__(self, outdir, bag_file_name='/data/dataset_ENVTACT_new2.bag', frequency=30, interpolate=True, time_frame=200000000, threshold=7500, training_size=0.8):
+        super().__init__(outdir, bag_file_name, time_frame=time_frame)
+
+    def filter_events_by_time(self, time_of_contact, time_frame = None):
+        time_frame = self.time_frame if time_frame is None else time_frame
+        event_in_time_idx = np.where((self.event_time > (
+            time_of_contact - time_frame)) * (self.event_time < time_of_contact))[0]
+        #time_of_contact - time_frame < ts < time_of_contact
+      
+        output_events = np.array(self.events)[event_in_time_idx, :]
+        return True, output_events    

@@ -26,7 +26,8 @@ import torch
 from torch_geometric.data import Dataset
 from torch_geometric.data import Data
 from torch_geometric.nn.pool import radius_graph, knn_graph
-from imports.extract_contact_cases import cases_dict
+from imports.ExtractContactCases import cases_dict
+from torch_geometric.utils import remove_isolated_nodes
 
 im_height=260
 im_width=346
@@ -79,18 +80,31 @@ class TactileDataset(Dataset):
 
         for sample_id in samples.keys():
             events = np.array(samples[sample_id]['events'])
-            feature = torch.tensor(events[:, 3])
+            feature = torch.tensor(events[:, 3].astype(np.float32))
             case = samples[sample_id]['case']
 
-            coord1, coord2 = torch.tensor(events[:, 0:2]).double().T 
+            coord1, coord2 = torch.tensor(events[:, 0:2].astype(np.float32)).T 
 
             ts = events[:, 2]
-            coord3 = torch.tensor((ts - ts.min()) / (ts.max() - ts.min()))
+            ts = ((ts - ts.min()) / (ts.max() - ts.min())).astype(np.float32)
+            coord3 = torch.tensor(ts)
             pos = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
-            edge_index = knn_graph(pos, 10)
-            y = torch.tensor(cases_dict[case])
+            #edge_index = radius_graph(pos, r=0.1, max_num_neighbors=10)
+            edge_index = knn_graph(pos, 32)
+
+            #edge_index, _, mask = remove_isolated_nodes(edge_index=edge_index, num_nodes=feature.shape[0])
+
+            #print(edge_index, sum(mask))
+            #print(mask.shape, data.x.shape, data.edge_index.shape)
+            
+            pseudo_maker = T.Cartesian(cat=False, norm=True)
+            
+            feature = feature.view(-1, 1)
+
+            y = torch.tensor(np.array(cases_dict[case], dtype=np.float32))
 
             data = Data(x=feature, edge_index=edge_index, pos=pos, y=y)
+            data = pseudo_maker(data)
 
             if self.pre_filter is not None and not self.pre_filter(data):
                     continue
@@ -109,8 +123,7 @@ class TactileDataset(Dataset):
     def load_all_raw(self):
         samples = {}
         for subset in ['train', 'val', 'test']:
-            with open(self.root / 'raw' / 'contact_cases.json', 'r') as f:
-                import json
+            with open(self.root.parent / subset / 'raw' / 'contact_cases.json', 'r') as f:
                 subset_samples = json.load(f)
                 subset_samples_tot_idx = {item[1]['total_idx']: 
                                         {
