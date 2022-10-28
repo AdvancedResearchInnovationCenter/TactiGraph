@@ -34,6 +34,7 @@ class ExtractContactCases:
         interpolate=True,
         time_frame=0.3e9,
         threshold=7500,
+        _limit = False
     ):
         self.outdir = Path(outdir)
         self.bag_file_name = bag_file_name
@@ -50,6 +51,7 @@ class ExtractContactCases:
         }
 
         self.parsed = False
+        self._limit = _limit
 
     def parse_bag(self):
         bag_file = rosbag.Bag(self.bag_file_name)
@@ -62,7 +64,69 @@ class ExtractContactCases:
         k = 0
         xyz = []
 
+        for topic, msg, t in tqdm(bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle'])):
+            if self._limit:
+                k += 1
+            if k > 59999:
+                break
+            if topic == '/dvs/events':
+                for e in msg.events:
+                    event = [e.x, e.y, e.ts.to_nsec(), e.polarity]
+                    events.append(event)
+                event_topic = True    
+            elif topic == '/contact_status':
+                contact_status.append(msg.data)
+                contact_status_ts.append(t.to_nsec())
+            elif topic == '/contact_angle':
+                if (len(contact_status) > 1):
+                    if (contact_status[-1] == True):
+                        best_rot_diff = 100
+                        best_rot_idx = 1
+                        i = 1
+                        for rot in list_of_rotations:
+                            diff_vals = np.sqrt( np.power(rot[0] - msg.x, 2) +  np.power(rot[1] - msg.y, 2) + np.power(rot[2] - msg.z, 2) )
+                            if best_rot_diff > diff_vals:
+                                best_rot_diff = diff_vals
+                                best_rot_idx = i
+                            i = i + 1
+
+                        contact_case.append(best_rot_idx)
+                        contact_case_ts.append(t.to_nsec())
+                    else:
+                        contact_case.append(0)
+                        contact_case_ts.append(t.to_nsec())
+                else:
+                    contact_case.append(0)
+                    contact_case_ts.append(t.to_nsec())
+        bag_file.close()
+        self.parsed = True
+
+        self.events = events
+        self.contact_status = contact_status
+        self.contact_status_ts = contact_status_ts
+        # 0:No contact 1: center, 2:remainder of contacts as in
+        # list_of_rotations
+        self.contact_case = contact_case
+        self.contact_case_ts = contact_case_ts
+
+        self.event_time = np.array([events[i][2] for i in range(np.shape(events)[0])])
+
+    def _parse_bag(self):
+        bag_file = rosbag.Bag(self.bag_file_name)
+
+        events = []
+        contact_status = []
+        contact_status_ts = []
+        contact_case = []  # 0:No contact 1: center, 2:remainder of contacts as in list_of_rotations
+        contact_case_ts = []
+        k = 0
+        xyz = []
+
         for topic, msg, t in tqdm(bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle']), desc='parsing rosbag'):
+            if self._limit:
+                k += 1
+            if k > 59999:
+                break
             if topic == '/dvs/events':
                 for e in msg.events:
                     event = [e.x, e.y, e.ts.to_nsec(), e.polarity]
@@ -96,7 +160,7 @@ class ExtractContactCases:
         for rot in list_of_rotations:
             diff = contact_angles - rot
             euc.append(np.linalg.norm(diff, axis=1))
-        contact_case = np.argmin(np.array(euc), axis=0)
+        contact_case = np.argmin(np.array(euc), axis=0) - 1
 
         self.events = events
         self.contact_status = contact_status
@@ -107,6 +171,7 @@ class ExtractContactCases:
         self.contact_case_ts = contact_case_ts
 
         self.event_time = np.array([events[i][2] for i in range(np.shape(events)[0])])
+        self.xyz = xyz
 
 
 
@@ -152,7 +217,7 @@ class ExtractContactCases:
     def _save(self, samples):
         sample_idx = list(samples.keys())
 
-        train_idx, val_test_idx = train_test_split(sample_idx, test_size=0.2, random_state=0) #fixed across extractions
+        train_idx, val_test_idx = train_test_split(sample_idx, test_size=0.4, random_state=0) #fixed across extractions
         val_idx, test_idx = train_test_split(val_test_idx, test_size=0.5, random_state=0) #fixed across extractions
 
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
@@ -198,9 +263,9 @@ class ExtractContactCases:
             self.parse_bag()
         self.get_rise()
 
-        label_contact_case = []
+        self.label_contact_case = []
         i = 0
-        event_arrays = []
+        self.event_arrays = []
 
         for status_index in tqdm(self.contact_rise_idx):
             for j in range(-7, 8):
@@ -209,14 +274,14 @@ class ExtractContactCases:
                 # print(event_array)
                 if detect:
                     in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < circle_rad 
-                    event_arrays.append(event_array[in_circle, :])
-                    label_contact_case.append(
+                    self.event_arrays.append(event_array[in_circle, :])
+                    self.label_contact_case.append(
                         np.array(self.case)[status_index + 1])
                     break
 
         samples={}
 
-        for i, (case, event_array) in enumerate(zip(label_contact_case, event_arrays)):
+        for i, (case, event_array) in enumerate(zip(self.label_contact_case, self.event_arrays)):
             samples[f'sample_{i+1}'] = {
                 'events': event_array.tolist(),
                 'case': case

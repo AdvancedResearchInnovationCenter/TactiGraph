@@ -39,35 +39,35 @@ class ya_1(torch.nn.Module):
     def forward(self, data):
         #data.x = F.elu(self.conv1(data.x , data.edge_index , data.edge_attr ))
         # print("index", data.x.view(-1,2).shape)
-        data.x = F.sigmoid(self.conv1(torch.tensor(data.x.view(-1,1), dtype=torch.float32), data.edge_index) )#, data.edge_attr ))
+        data.x = F.elu(self.conv1(torch.tensor(data.x.view(-1,1), dtype=torch.float32), data.edge_index) )#, data.edge_attr ))
 
-        # data.x = F.sigmoid(self.conv1(torch.tensor(data.x.clone().detach(), dtype=torch.float32), data.edge_index))
+        # data.x = F.elu(self.conv1(torch.tensor(data.x.clone().detach(), dtype=torch.float32), data.edge_index))
         data.x = self.bn1(data.x)
         part1= data.x
 
 
-        data.x = F.sigmoid(self.conv2(data.x, data.edge_index))
+        data.x = F.elu(self.conv2(data.x, data.edge_index))
         data.x = self.bn2(data.x)
         part2= data.x
 
         
         data.x=torch.cat((part1,part2), dim=1) #64+64
-        data.x = F.sigmoid(self.conv3(data.x, data.edge_index))
+        data.x = F.elu(self.conv3(data.x, data.edge_index))
         data.x = self.bn3(data.x)
         
-        data.x = F.sigmoid(self.conv4(data.x, data.edge_index))
+        data.x = F.elu(self.conv4(data.x, data.edge_index))
         data.x = self.bn4(data.x)
         
-        data.x = F.sigmoid(self.conv5(data.x, data.edge_index))
+        data.x = F.elu(self.conv5(data.x, data.edge_index))
         data.x = self.bn5(data.x)
 
-        data.x = F.sigmoid(self.conv6(data.x, data.edge_index))
+        data.x = F.elu(self.conv6(data.x, data.edge_index))
         data.x = self.bn6(data.x)
         
-        data.x = F.sigmoid(self.conv7(data.x, data.edge_index))
+        data.x = F.elu(self.conv7(data.x, data.edge_index))
         data.x = self.bn7(data.x)
 
-        # data.x = F.sigmoid(self.conv8(data.x, data.edge_index))
+        # data.x = F.elu(self.conv8(data.x, data.edge_index))
                 # 2. Readout layer
         x = global_mean_pool(data.x, data.batch)  # [batch_size, hidden_channels]
 

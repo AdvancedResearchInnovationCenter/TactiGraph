@@ -1,0 +1,7 @@
+{
+    "model": "Net",
+    "extraction_used": "/home/hussain/tactile/data/contact_extraction2",
+    "n_epochs": 150,
+    "final_val_loss_degrees": 3.636361629848543,
+    "transform": null
+}
