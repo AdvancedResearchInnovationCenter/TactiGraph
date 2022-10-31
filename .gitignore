@@ -179,4 +179,5 @@ imgs
 *.png
 event_utils/
 MH_files/
+plots/
 *.pdf
