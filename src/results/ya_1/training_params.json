@@ -1,0 +1,6 @@
+{
+    "model": "ya_1",
+    "extraction_used": "/home/hussain/tactile/data/contact_extraction5",
+    "n_epochs": 150,
+    "final_val_loss_degrees": 3.1430122821696522
+}

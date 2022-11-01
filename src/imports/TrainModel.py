@@ -1,4 +1,3 @@
-from functools import total_ordering
 import json
 import torch
 import torch_geometric as pyg
@@ -8,6 +7,36 @@ from pathlib import Path
 from numpy import pi
 from pandas import DataFrame
 
+
+def bunny(epoch):
+    modulo = 10
+
+    if (epoch % modulo*2) < modulo:
+        k = epoch % modulo
+
+        sp = ' ' * k * 2 
+        
+        print()
+        print(sp + '|￣￣￣￣￣￣￣￣|')
+        print(sp + '| TRAINING |')
+        print(sp + '| epoch |')
+        print(sp + '| ', epoch ,' |')
+        print(sp + '| ＿＿＿_＿＿＿＿|')
+        print(sp + ' (\__/) ||')
+        print(sp + ' (•ㅅ•) || ')
+        print(sp + ' / 　 づ')
+    else:
+        sp = ' ' * (modulo - k) * 2
+        
+        print()
+        print(sp + '|￣￣￣￣￣￣￣￣|')
+        print(sp + '| TRAINING |')
+        print(sp + '| epoch |')
+        print(sp + '| ', epoch ,' |')
+        print(sp + '| ＿＿＿_＿＿＿＿|')
+        print(sp + '        || (\__/)')
+        print(sp + '        || (•ㅅ•)')
+        print(sp + '          べ    \\')
 class TrainModel():
 
     def __init__(
@@ -52,7 +81,12 @@ class TrainModel():
         self.train_losses = []
         self.val_losses = []
         self.lr = []
-        for epoch in trange(1, self.n_epochs + 1, desc='training', unit='epoch'):
+
+        name = str(type(self.model)).split('.')[-1][:-2]
+        path = Path('results') / name
+
+        for epoch in trange(self.n_epochs, desc='training', unit='epoch'):
+            #bunny(epoch)
             epoch_loss = 0
             lr = self.optimizer.param_groups[0]['lr']
             self.lr.append(lr)
@@ -71,7 +105,9 @@ class TrainModel():
                         epoch_loss += loss.detach().item()
                         tepoch.set_postfix({
                             'train_loss': epoch_loss / (i + 1), 
+                            'train_loss_degrees': epoch_loss / (i + 1) * 180/pi, 
                             'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
+                            'val_loss_degrees': self.val_losses[epoch - 1] * 180/pi if epoch > 0 else 'na',
                             'lr': lr
                             })
 
@@ -79,8 +115,11 @@ class TrainModel():
                 val_loss = self.validate()
                 self.scheduler.step(val_loss)
                 tepoch.set_postfix({'train_loss': epoch_loss, 'val_loss': val_loss})
-            self.train_losses.append(epoch_loss)
-            self.val_losses.append(val_loss)
+                self.train_losses.append(epoch_loss)
+                self.val_losses.append(val_loss)
+            if (epoch + 1) % 1 == 0:
+                self.log(current_epoch=epoch)
+        torch.save(self.model, path / 'model')
 
     def validate(self):
         loss = 0
@@ -102,8 +141,9 @@ class TrainModel():
         loss /= len(self.train_data)
         return loss
 
-    def log(self):
+    def log(self, current_epoch):
         #find model name
+        print('logging')
         name = str(type(self.model)).split('.')[-1][:-2]
         path = Path('results') / name
         if not path.exists():
@@ -112,27 +152,19 @@ class TrainModel():
         with open(path / 'training_params.json', 'w') as f:
             params = {
                 'model': name,
-                'extraction_used': self.extraction_case_dir,
+                'extraction_used': str(self.extraction_case_dir),
                 'n_epochs': self.n_epochs,
                 'final_val_loss_degrees': self.val_losses[-1] * 180 / pi,
-                'transform': self.transform,
             }
-
             json.dump(params, f, indent=4)
 
-        train_log = {
-            'epoch': [i for i in range(1, self.n_epochs + 1)], 
+        train_log = { 
+            'epoch': [i for i in range(1, current_epoch+2)],
             'train_loss': self.train_losses,
             'val_loss': self.val_losses,
             'lr': self.lr
         }
-
         DataFrame(train_log).to_csv(path / 'train_log.csv', index=False)
-        
-
-
-
-
 
 
 
