@@ -7,36 +7,6 @@ from pathlib import Path
 from numpy import pi
 from pandas import DataFrame
 
-
-def bunny(epoch):
-    modulo = 10
-
-    if (epoch % modulo*2) < modulo:
-        k = epoch % modulo
-
-        sp = ' ' * k * 2 
-        
-        print()
-        print(sp + '|￣￣￣￣￣￣￣￣|')
-        print(sp + '| TRAINING |')
-        print(sp + '| epoch |')
-        print(sp + '| ', epoch ,' |')
-        print(sp + '| ＿＿＿_＿＿＿＿|')
-        print(sp + ' (\__/) ||')
-        print(sp + ' (•ㅅ•) || ')
-        print(sp + ' / 　 づ')
-    else:
-        sp = ' ' * (modulo - k) * 2
-        
-        print()
-        print(sp + '|￣￣￣￣￣￣￣￣|')
-        print(sp + '| TRAINING |')
-        print(sp + '| epoch |')
-        print(sp + '| ', epoch ,' |')
-        print(sp + '| ＿＿＿_＿＿＿＿|')
-        print(sp + '        || (\__/)')
-        print(sp + '        || (•ㅅ•)')
-        print(sp + '          べ    \\')
 class TrainModel():
 
     def __init__(
@@ -92,6 +62,7 @@ class TrainModel():
             self.lr.append(lr)
             with tqdm(self.train_loader, unit="batch") as tepoch:
                 for i, data in enumerate(tepoch):
+                    
                     tepoch.set_description(f"Epoch {epoch}")
                     with torch.autograd.detect_anomaly():
                         data = data.to(self.device)
@@ -140,6 +111,9 @@ class TrainModel():
             loss += self.loss_func(end_point[0], data.y).detach().item()
         loss /= len(self.train_data)
         return loss
+
+    def augment(self, batch):
+        pass
 
     def log(self, current_epoch):
         #find model name
