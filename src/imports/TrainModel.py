@@ -17,17 +17,18 @@ class TrainModel():
         optimizer = 'adam',
         lr = 0.001,
         loss_func = torch.nn.L1Loss(),
-        transform = None
+        transform = None,
+        features = 'all'
         ):
 
         self.extraction_case_dir = Path(extraction_case_dir)
         self.transform = transform
 
-        self.train_data = TactileDataset(self.extraction_case_dir / 'train', transform=transform)
-        self.val_data = TactileDataset(self.extraction_case_dir / 'val', transform=transform)
-        self.test_data = TactileDataset(self.extraction_case_dir / 'test', transform=transform)
+        self.train_data = TactileDataset(self.extraction_case_dir / 'train', transform=transform, features=features)
+        self.val_data = TactileDataset(self.extraction_case_dir / 'val', transform=transform, features=features)
+        self.test_data = TactileDataset(self.extraction_case_dir / 'test', transform=transform, features=features)
 
-        self.train_loader = pyg.loader.DataLoader(self.train_data)
+        self.train_loader = pyg.loader.DataLoader(self.train_data, shuffle=True)
         self.val_loader = pyg.loader.DataLoader(self.val_data)
         self.test_loader = pyg.loader.DataLoader(self.test_data)
 
