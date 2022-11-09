@@ -37,16 +37,34 @@ def files_exist(files):
 
 
 class TactileDataset(Dataset):
-
-    def __init__(self, root, transform=None, pre_transform=None):
-        """Generates TactileDataset for loading
+    """_summary_
 
         Args:
-            root (string): directory of data
+            root (_type_): _description_
             transform (_type_, optional): _description_. Defaults to None.
             pre_transform (_type_, optional): _description_. Defaults to None.
+            features (str, optional): _description_. Defaults to 'all'.
+            reset (bool, optional): _description_. Defaults to False.
+    """
+
+    def __init__(self, root, transform=None, pre_transform=None, features='all', reset=False):
+        """_summary_
+
+        Args:
+            root (_type_): _description_
+            transform (_type_, optional): _description_. Defaults to None.
+            pre_transform (_type_, optional): _description_. Defaults to None.
+            features (str, optional): _description_. Defaults to 'all'.
+            reset (bool, optional): _description_. Defaults to False.
         """
+        if reset:
+            print('rm -rf ' + root + '/processed')
+            ret=os.system('rm -rf ' + root + '/processed')
         root = Path(root)
+
+        assert features in ['pol', 'coords', 'all']
+        self.features = features
+
         super(TactileDataset, self).__init__(root, transform, pre_transform)
         self._indices = None
         
@@ -75,22 +93,34 @@ class TactileDataset(Dataset):
         return range(self.__len__()) if self._indices is None else self._indices
 
     def process(self):
+        knn = 32
         with open(self.root / 'raw' / 'contact_cases.json', 'r') as f:
             samples = json.load(f)
 
         for sample_id in samples.keys():
             events = np.array(samples[sample_id]['events'])
-            feature = torch.tensor(events[:, 3].astype(np.float32))
-            case = samples[sample_id]['case']
 
             coord1, coord2 = torch.tensor(events[:, 0:2].astype(np.float32)).T 
-
             ts = events[:, 2]
             ts = ((ts - ts.min()) / (ts.max() - ts.min())).astype(np.float32)
             coord3 = torch.tensor(ts)
             pos = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
+
+            if self.features == 'pol':
+                feature = torch.tensor(events[:, 3].astype(np.float32))
+                feature = feature.view(-1, 1)
+            elif self.features == 'coords':
+                feature = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
+            elif self.features == 'all':
+                feature = torch.hstack((
+                    torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T, 
+                    torch.tensor(events[:, 3].astype(np.float32)).reshape(-1, 1)
+                    ))
+
+            case = samples[sample_id]['case']
+
             #edge_index = radius_graph(pos, r=0.1, max_num_neighbors=10)
-            edge_index = knn_graph(pos, 32)
+            edge_index = knn_graph(pos, knn)
 
             #edge_index, _, mask = remove_isolated_nodes(edge_index=edge_index, num_nodes=feature.shape[0])
 
@@ -99,7 +129,6 @@ class TactileDataset(Dataset):
             
             pseudo_maker = T.Cartesian(cat=False, norm=True)
             
-            feature = feature.view(-1, 1)
 
             y = torch.tensor(np.array(cases_dict[case], dtype=np.float32))
 
@@ -113,6 +142,17 @@ class TactileDataset(Dataset):
                     data = self.pre_transform(data)
 
             torch.save(data, self.root / 'processed' / f'{sample_id}.pt')
+
+        with open(self.root.parent / 'extraction_params.json', 'r') as f:
+            params = json.load(f)
+        
+        params['kNN'] = knn
+        params['node_features'] = self.features
+        print(params)
+        with open(self.root.parent / 'extraction_params.json', 'w') as f:
+            json.dump(params, f, indent=4)
+            
+            
 
     def get(self, idx):
         # print("I'm in get ", self.processed_dir)

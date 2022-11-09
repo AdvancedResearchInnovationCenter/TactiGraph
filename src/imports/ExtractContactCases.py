@@ -1,7 +1,7 @@
 import numpy as np
 import rosbag
 from scipy.interpolate import interp1d
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split
@@ -24,212 +24,180 @@ cases_dict[0] = [0, 0]
 dist_from_center = lambda x, y: np.sqrt((x - 173)**2 + (y - 130)**2)
 circle_rad=90
 
+def rotate_case(ev_arr, label, angle):
+    theta = np.radians(angle)
+    c, s = np.cos(theta), np.sin(theta)
+    R = np.array(((c, -s), (s, c)))
+    
+    centered = ev_arr[:, :2] - np.array([345, 259]) / 2
+    rot_ev = (R @ centered.T).T + np.array([345, 259]) / 2
+    
+    rot_v = np.array(cases_dict[label])
+    new_rot_v = R @ rot_v
+    #print(new_rot_v, cases_dict[label])
+
+    best_rot_diff = 100
+    best_rot_idx = 1
+    i = 1
+    
+    for rot in list_of_rotations:
+        diff_vals = np.sqrt( np.power(rot[0] - new_rot_v[0], 2) +  np.power(rot[1] - new_rot_v[1], 2))
+        if best_rot_diff > diff_vals:
+            best_rot_diff = diff_vals
+            best_rot_idx = i
+        i = i + 1
+    
+    
+    return best_rot_idx, np.concatenate([rot_ev.astype(int), ev_arr[:, 2:]], -1)
 class ExtractContactCases:
 
     def __init__(
         self,
         outdir,
-        bag_file_name='/data/dataset_ENVTACT_new2.bag',
-        frequency=30, 
-        interpolate=True,
-        time_frame=0.3e9,
-        threshold=7500,
-        _limit = False
+        bag_file_name='/data/dataset_ENVTACT_new2.bag',     
+        delta_t = 0.025e9,
+        margin = -0.025e9,
+        max_events_thresh = 2000,
+        augment = False,
+        train_prop = 0.6
     ):
         self.outdir = Path(outdir)
         self.bag_file_name = bag_file_name
-        self.frequency = frequency
-        self.interpolate = interpolate
-        self.time_frame = time_frame
-        self.threshold = threshold
-
-        self.params = {
-            'threshold': self.threshold,
-            'time_frame': self.time_frame,
-            'interpolate': self.interpolate,
-            'frequency': self.frequency
-        }
 
         self.parsed = False
-        self._limit = _limit
+
+        self.train_prop = train_prop 
+        self.augment = augment
+        self.delta_t = delta_t
+        self.margin = margin
+        self.max_events_thresh = max_events_thresh
+        
+        self.params = {
+            'train_prop': train_prop,
+            'augment': augment,
+            'delta_t': delta_t,
+            'margin': margin,
+            'max_events_thresh': max_events_thresh
+        }
+        
 
     def parse_bag(self):
         bag_file = rosbag.Bag(self.bag_file_name)
-
         events = []
         contact_status = []
         contact_status_ts = []
-        contact_case = []  # 0:No contact 1: center, 2:remainder of contacts as in list_of_rotations
-        contact_case_ts = []
-        k = 0
-        xyz = []
+        contact_angle = []
+        contact_angle = []
 
-        for topic, msg, t in tqdm(bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle'])):
-            if self._limit:
-                k += 1
-            if k > 59999:
-                break
+        for topic, msg, t in tqdm(
+            bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle']), desc='parsing bag'):
             if topic == '/dvs/events':
                 for e in msg.events:
                     event = [e.x, e.y, e.ts.to_nsec(), e.polarity]
                     events.append(event)
-                event_topic = True    
             elif topic == '/contact_status':
                 contact_status.append(msg.data)
                 contact_status_ts.append(t.to_nsec())
             elif topic == '/contact_angle':
-                if (len(contact_status) > 1):
-                    if (contact_status[-1] == True):
-                        best_rot_diff = 100
-                        best_rot_idx = 1
-                        i = 1
-                        for rot in list_of_rotations:
-                            diff_vals = np.sqrt( np.power(rot[0] - msg.x, 2) +  np.power(rot[1] - msg.y, 2) + np.power(rot[2] - msg.z, 2) )
-                            if best_rot_diff > diff_vals:
-                                best_rot_diff = diff_vals
-                                best_rot_idx = i
-                            i = i + 1
-
-                        contact_case.append(best_rot_idx)
-                        contact_case_ts.append(t.to_nsec())
-                    else:
-                        contact_case.append(0)
-                        contact_case_ts.append(t.to_nsec())
-                else:
-                    contact_case.append(0)
-                    contact_case_ts.append(t.to_nsec())
+                contact_angle.append([msg.x, msg.y, msg.z])
+                
+                # Updated contact status according to no. of events
+                
+        #print(events)
         bag_file.close()
-        self.parsed = True
 
-        self.events = events
-        self.contact_status = contact_status
-        self.contact_status_ts = contact_status_ts
-        # 0:No contact 1: center, 2:remainder of contacts as in
-        # list_of_rotations
-        self.contact_case = contact_case
-        self.contact_case_ts = contact_case_ts
+        self.case_span = 2.66e9
+        self.find_ts_idx = lambda ts: np.searchsorted(contact_status_ts, ts)
 
-        self.event_time = np.array([events[i][2] for i in range(np.shape(events)[0])])
+        i = 0 
+        cases_ts = []
+        cases_idx = []
+        cases = []
+        while i < len(contact_status):
+            if contact_status[i]:
+                init_ts = contact_status_ts[i]
+                fin_ts = self.look_ahead_big(init_ts, contact_status, contact_status_ts)
+                fin_idx = self.find_ts_idx(fin_ts)
+                case = self.find_case(np.mean([init_ts, fin_ts]), contact_angle)
+                
+                cases.append(case)
+                cases_ts.append([init_ts, fin_ts])
+                cases_idx.append([i, fin_idx])
+                #print(len(cases_ts), init_ts, fin_ts, (fin_ts - init_ts)*1e-9, i, fin_idx, case, '\n')
+                i = fin_idx + 1
+            else:
+                i += 1
 
-    def _parse_bag(self):
-        bag_file = rosbag.Bag(self.bag_file_name)
+        self.events = np.array(events)
+        self.cases_idx = cases_idx
+        self.cases_ts = cases_ts
+        self.cases = cases
 
-        events = []
-        contact_status = []
-        contact_status_ts = []
-        contact_case = []  # 0:No contact 1: center, 2:remainder of contacts as in list_of_rotations
-        contact_case_ts = []
-        k = 0
-        xyz = []
 
-        for topic, msg, t in tqdm(bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle']), desc='parsing rosbag'):
-            if self._limit:
-                k += 1
-            if k > 59999:
-                break
-            if topic == '/dvs/events':
-                for e in msg.events:
-                    event = [e.x, e.y, e.ts.to_nsec(), e.polarity]
-                    events.append(event)
-                event_topic = True    
-            elif topic == '/contact_status':
-                contact_status.append(msg.data)
-                contact_status_ts.append(t.to_nsec())
-            elif topic == '/contact_angle':
-                if (len(contact_status) > 1):
-                    if (contact_status[-1] == True):
-                        contact_case_ts.append(t.to_nsec())
-
-                        xyz.append([msg.x, msg.y, msg.z])
-
-                    else:
-                        xyz.append([0, 0, 0])
-                        contact_case_ts.append(t.to_nsec())
+    def look_ahead_big(self, ts, contact_status, contact_status_ts):
+        fin_ts = ts + self.case_span
+        fin_idx = self.find_ts_idx(fin_ts)
+        #print(fin_idx)
+        if contact_status[fin_idx]:
+            #look further
+            more = True
+            fin_idx_ = fin_idx 
+            while more:
+                fin_idx_ += 1
+                if fin_idx_ - fin_idx > 25:
+                    pass#print('warning more than 25 idx away from init_ts + case_span')
+                if contact_status[fin_idx_]:
+                    continue
                 else:
-                    xyz.append([0, 0, 0])
+                    more = False
+            #print(f'was before case ended by {fin_idx_ - fin_idx} indexes')
+            fin_idx = fin_idx_ - 1
+        else:
+            #look backwards
+            more = True
+            fin_idx_ = fin_idx 
+            while more:
+                fin_idx_ -= 1
+                if not contact_status[fin_idx_]:
+                    continue
+                else:
+                    more = False
+            #print(f'was ahead case ended by {fin_idx - fin_idx} indexes')
+            fin_idx = fin_idx_ + 1
+            
+        return contact_status_ts[fin_idx]
 
-                    contact_case_ts.append(t.to_nsec())
-                        # Updated contact status according to no. of events
 
-                # print(events)
-        bag_file.close()
-        self.parsed = True
-
-        contact_angles = np.array(xyz)
-        euc = []
+    def find_case(self, ts, contact_angle):
+        idx = self.find_ts_idx(ts)
+        best_rot_diff = 100
+        best_rot_idx = 1
+        i = 1
+        x, y, z = contact_angle[idx]
         for rot in list_of_rotations:
-            diff = contact_angles - rot
-            euc.append(np.linalg.norm(diff, axis=1))
-        contact_case = np.argmin(np.array(euc), axis=0) - 1
-
-        self.events = events
-        self.contact_status = contact_status
-        self.contact_status_ts = contact_status_ts
-        # 0:No contact 1: center, 2:remainder of contacts as in
-        # list_of_rotations
-        self.contact_case = contact_case
-        self.contact_case_ts = contact_case_ts
-
-        self.event_time = np.array([events[i][2] for i in range(np.shape(events)[0])])
-        self.xyz = xyz
-
-
-
-
-    def interpolation(self):
-        f = interp1d(self.contact_case_ts, self.contact_case, kind='previous')
-        contact_case_ts_int = range(min(self.contact_case_ts), max(
-            self.contact_case_ts), int(1e9 / self.frequency))
-        contact_case_int = f(contact_case_ts_int)
-        return contact_case_ts_int, contact_case_int
-
-    def filter_events_by_time(self, time_of_contact, time_frame = None):
-        time_frame = self.time_frame if time_frame is None else time_frame
-        event_in_time_idx = np.where((self.event_time > (
-            time_of_contact - time_frame)) * (self.event_time < time_of_contact))[0]
-        # print(len(event_in_time_idx))
-        #time_of_contact - time_frame < ts < time_of_contact
-        if len(event_in_time_idx) < self.threshold:
-            return False, []
-        else:
-            # print(event_in_time_idx)
-            output_events = np.array(self.events)[event_in_time_idx, :]
-            return True, output_events
-
-    def get_rise(self):
-        if self.interpolate:
-            self.case_ts, self.case = self.interpolation()
-        else:
-            self.case_ts, self.case = self.contact_case_ts, self.contact_case
-
-        # out[i] = a[i+1] - a[i] if positive then at idx i the
-        contact_case_diff = np.diff(self.case)
-        contact_case_diff = np.insert(contact_case_diff, 0, 0)
-        contact_rise_idx = np.where(contact_case_diff > 0.9)[0]
-
-        contact_rise = len(self.case) * [0]
-        for index in contact_rise_idx:
-            contact_rise[index] = 70
-
-        self.contact_rise = contact_rise
-        self.contact_rise_idx = contact_rise_idx
+            diff_vals = np.sqrt(np.power(rot[0] - x, 2) +  np.power(rot[1] - y, 2) + np.power(rot[2] - z, 2))
+            if best_rot_diff > diff_vals:
+                best_rot_diff = diff_vals
+                best_rot_idx = i
+            i = i + 1
+        return best_rot_idx
 
     def _save(self, samples):
         sample_idx = list(samples.keys())
 
-        train_idx, val_test_idx = train_test_split(sample_idx, test_size=0.4, random_state=0) #fixed across extractions
+        train_idx, val_test_idx = train_test_split(sample_idx, test_size=1-self.train_prop, random_state=0) #fixed across extractions
         val_idx, test_idx = train_test_split(val_test_idx, test_size=0.5, random_state=0) #fixed across extractions
 
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
 
+
+        with open(self.outdir / 'extraction_params.json', 'w') as f:
+            json.dump(self.params, f, indent=4)
+    
         for sub_name, subset in subsets:
             if not (self.outdir / sub_name).exists():
                 (self.outdir / sub_name / 'raw').mkdir(parents=True)
                 (self.outdir / sub_name / 'processed').mkdir(parents=True)
-
-                with open(self.outdir / sub_name / 'extraction_params.json', 'w') as f:
-                    json.dump(self.params, f, indent=4)
-            
             with open(self.outdir / sub_name / 'raw' / 'contact_cases.json', 'w') as f:
                 subset_samples = {}
                 for i, subset_idx in enumerate(subset):
@@ -239,67 +207,52 @@ class ExtractContactCases:
                 json.dump(subset_samples, f, indent=4)
 
 
-    def sample_generator(self, time_frame = None):
-        if not self.parsed:
-            self.parse_bag()
-        self.get_rise()
-
-        i = 0
-
-        for status_index in self.contact_rise_idx:
-            for j in range(-7, 8):
-                time_step = self.case_ts[status_index + j]
-                detect, event_array = self.filter_events_by_time(time_step, time_frame = time_frame)
-                # print(event_array)
-                if detect:
-                    i += 1
-                    in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < circle_rad 
-                    yield {f'sample_{i}': {'events': event_array[in_circle, :], 'case': np.array(self.case)[status_index + 1]}}
-                    break
+    def sample_generator(self, label_contact_case, event_arrays):
+        for case, event_array in zip(label_contact_case, event_arrays):
+            if not self.augment:
+               yield case, event_array 
+            else:
+                for angle in [0, 90, 180, 270]:
+                    if angle == 0:
+                        yield case, event_array
+                    else:
+                        yield rotate_case(event_array, case, angle)
             
-    
     def extract(self):
         if not self.parsed:
             self.parse_bag()
-        self.get_rise()
 
-        self.label_contact_case = []
-        i = 0
-        self.event_arrays = []
+        dist_from_center = lambda x, y: np.sqrt((x - 173)**2 + (y - 130)**2)
+        circle_rad=90
 
-        for status_index in tqdm(self.contact_rise_idx):
-            for j in range(-7, 8):
-                time_step = self.case_ts[status_index + j]
-                detect, event_array = self.filter_events_by_time(time_step)
-                # print(event_array)
-                if detect:
-                    in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < circle_rad 
-                    self.event_arrays.append(event_array[in_circle, :])
-                    self.label_contact_case.append(
-                        np.array(self.case)[status_index + 1])
-                    break
+        event_arrays = []
+        label_contact_case = []
+        ts = np.array(self.events)[:, 2]
+        for i, idx in enumerate(tqdm(self.cases_idx)):
+            init_ts_idx = np.searchsorted(ts, self.cases_ts[i][0] + self.margin)
+            fin_ts_idx = np.searchsorted(ts, self.cases_ts[i][0] + self.delta_t)
+            if fin_ts_idx - init_ts_idx + 1 < 200:
+                continue
+            elif fin_ts_idx - init_ts_idx + 1 >= self.max_events_thresh:
+                event_array = self.events[init_ts_idx:fin_ts_idx+1][-self.max_events_thresh - 1:]
+                
+            else:
+                event_array = self.events[init_ts_idx:fin_ts_idx+1]
+                
+            in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < circle_rad  
+            event_arrays.append(event_array[in_circle, :])
+            label_contact_case.append(self.cases[i])
 
         samples={}
-
-        for i, (case, event_array) in enumerate(zip(self.label_contact_case, self.event_arrays)):
+        
+        gen = self.sample_generator(label_contact_case, event_arrays) 
+        for i, (case, event_array) in enumerate(gen):
             samples[f'sample_{i+1}'] = {
                 'events': event_array.tolist(),
                 'case': case
                 }
 
         print("saving")
+        self.params['n'] = len(samples)
         self._save(samples)
         
-
-class nothresh(ExtractContactCases):
-    def __init__(self, outdir, bag_file_name='/data/dataset_ENVTACT_new2.bag', frequency=30, interpolate=True, time_frame=200000000, threshold=7500, training_size=0.8):
-        super().__init__(outdir, bag_file_name, time_frame=time_frame)
-
-    def filter_events_by_time(self, time_of_contact, time_frame = None):
-        time_frame = self.time_frame if time_frame is None else time_frame
-        event_in_time_idx = np.where((self.event_time > (
-            time_of_contact - time_frame)) * (self.event_time < time_of_contact))[0]
-        #time_of_contact - time_frame < ts < time_of_contact
-      
-        output_events = np.array(self.events)[event_in_time_idx, :]
-        return True, output_events    
