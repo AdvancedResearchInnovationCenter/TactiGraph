@@ -190,6 +190,7 @@ class ExtractContactCases:
 
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
 
+        self.outdir.mkdir(parents=True)
 
         with open(self.outdir / 'extraction_params.json', 'w') as f:
             json.dump(self.params, f, indent=4)
