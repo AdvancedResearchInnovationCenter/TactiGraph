@@ -181,3 +181,4 @@ event_utils/
 MH_files/
 plots/
 *.pdf
+*.bag

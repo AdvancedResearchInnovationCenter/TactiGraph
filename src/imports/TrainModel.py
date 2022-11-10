@@ -18,7 +18,8 @@ class TrainModel():
         lr = 0.001,
         loss_func = torch.nn.L1Loss(),
         transform = None,
-        features = 'all'
+        features = 'all',
+        weight_decay=0
         ):
 
         self.extraction_case_dir = Path(extraction_case_dir)
@@ -37,7 +38,7 @@ class TrainModel():
 
 
         if optimizer == 'adam':
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=weight_decay)
         else:
             raise NotImplementedError('use tm.optimizer = torch.optim.<optimizer>')
         

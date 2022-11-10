@@ -187,10 +187,11 @@ class ExtractContactCases:
 
         train_idx, val_test_idx = train_test_split(sample_idx, test_size=1-self.train_prop, random_state=0) #fixed across extractions
         val_idx, test_idx = train_test_split(val_test_idx, test_size=0.5, random_state=0) #fixed across extractions
-
+        print(len(train_idx), len(val_idx), len(test_idx))
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
-
-        self.outdir.mkdir(parents=True)
+        
+        if not self.outdir.exists():
+            self.outdir.mkdir(parents=True)
 
         with open(self.outdir / 'extraction_params.json', 'w') as f:
             json.dump(self.params, f, indent=4)
