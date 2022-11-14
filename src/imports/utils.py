@@ -20,3 +20,12 @@ def events_plot_3d(events_data):
     t_st_neg = events_negative[:,2]
     ax.scatter(px_neg, py_neg, t_st_neg, c="blue", s=5, marker='.')
     plt.show()
+    
+    
+import seaborn as sns
+def plot(ev):
+    plt.figure(figsize=(5, 5))
+    print(ev.shape)
+    
+    sns.scatterplot( x=ev[:, 0],y=ev[:, 1], hue=ev[:, 3])
+    # sns.scatterplot(x=ev[:, 0], y=ev[:, 1], hue=ev[:, 3])

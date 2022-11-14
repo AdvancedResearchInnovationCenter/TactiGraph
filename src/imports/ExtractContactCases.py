@@ -59,7 +59,8 @@ class ExtractContactCases:
         margin = -0.025e9,
         max_events_thresh = 2000,
         augment = False,
-        train_prop = 0.6
+        train_prop = 0.6,
+        _keep_raw = False
     ):
         self.outdir = Path(outdir)
         self.bag_file_name = bag_file_name
@@ -71,6 +72,7 @@ class ExtractContactCases:
         self.delta_t = delta_t
         self.margin = margin
         self.max_events_thresh = max_events_thresh
+        self._keep_raw = _keep_raw
         
         self.params = {
             'train_prop': train_prop,
@@ -183,6 +185,8 @@ class ExtractContactCases:
         return best_rot_idx
 
     def _save(self, samples):
+        if self._keep_raw:
+            self.samples = samples
         sample_idx = list(samples.keys())
 
         train_idx, val_test_idx = train_test_split(sample_idx, test_size=1-self.train_prop, random_state=0) #fixed across extractions

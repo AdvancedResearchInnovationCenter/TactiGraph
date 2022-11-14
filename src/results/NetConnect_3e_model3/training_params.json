@@ -1,6 +1,6 @@
 {
     "model": "NetConnect_3e_model3",
     "extraction_used": "/home/hussain/tactile/data/contact_extraction7",
-    "n_epochs": 150,
-    "final_val_loss_degrees": 1.4409222038659713
+    "n_epochs": 500,
+    "final_val_loss_degrees": 1.356471263895099
 }
