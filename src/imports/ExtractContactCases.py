@@ -21,7 +21,7 @@ for i in range(1, N_examples):
 cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
 cases_dict[0] = [0, 0]
 
-dist_from_center = lambda x, y: np.sqrt((x - 173)**2 + (y - 130)**2)
+dist_from_center = lambda x, y: np.sqrt((x - 157)**2 + (y - 124)**2)
 circle_rad=90
 
 def rotate_case(ev_arr, label, angle):
@@ -29,8 +29,8 @@ def rotate_case(ev_arr, label, angle):
     c, s = np.cos(theta), np.sin(theta)
     R = np.array(((c, -s), (s, c)))
     
-    centered = ev_arr[:, :2] - np.array([345, 259]) / 2
-    rot_ev = (R @ centered.T).T + np.array([345, 259]) / 2
+    centered = ev_arr[:, :2] - np.array([157, 124])
+    rot_ev = (R @ centered.T).T + np.array([157, 124])
     
     rot_v = np.array(cases_dict[label])
     new_rot_v = R @ rot_v
@@ -47,8 +47,8 @@ def rotate_case(ev_arr, label, angle):
             best_rot_idx = i
         i = i + 1
     
-    
     return best_rot_idx, np.concatenate([rot_ev.astype(int), ev_arr[:, 2:]], -1)
+
 class ExtractContactCases:
 
     def __init__(
@@ -220,9 +220,9 @@ class ExtractContactCases:
             else:
                 for angle in [0, 90, 180, 270]:
                     if angle == 0:
-                        yield case, event_array
+                        yield case, event_array, False
                     else:
-                        yield rotate_case(event_array, case, angle)
+                        yield rotate_case(event_array, case, angle), True
             
     def extract(self):
         if not self.parsed:
