@@ -188,9 +188,12 @@ class ExtractContactCases:
         if self._keep_raw:
             self.samples = samples
         sample_idx = list(samples.keys())
+        cases = [str(samples[s_idx]['case']) for s_idx in sample_idx]
 
-        train_idx, val_test_idx = train_test_split(sample_idx, test_size=1-self.train_prop, random_state=0) #fixed across extractions
-        val_idx, test_idx = train_test_split(val_test_idx, test_size=0.5, random_state=0) #fixed across extractions
+        train_idx, val_test_idx = train_test_split(sample_idx, stratify=cases, test_size=1-self.train_prop, random_state=0) #fixed across extractions
+        
+        cases = [str(samples[s_idx]['case']) for s_idx in val_test_idx]
+        val_idx, test_idx = train_test_split(val_test_idx, stratify=cases, test_size=0.5, random_state=0) #fixed across extractions
         print(len(train_idx), len(val_idx), len(test_idx))
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
         

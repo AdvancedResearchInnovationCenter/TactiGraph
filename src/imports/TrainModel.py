@@ -20,6 +20,7 @@ class TrainModel():
         transform = None,
         features = 'all',
         weight_decay=0,
+        patience=10,
         batch = 1,
         augment=False
         ):
@@ -44,7 +45,7 @@ class TrainModel():
         else:
             raise NotImplementedError('use tm.optimizer = torch.optim.<optimizer>')
         
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', min_lr=1e-5)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', min_lr=1e-5, patience=patience)
 
         self.loss_func = loss_func
 
@@ -109,7 +110,7 @@ class TrainModel():
     
     def test(self):
         loss = 0
-        for i, data in enumerate(self.train_loader):      
+        for i, data in enumerate(self.test_loader):      
             data = data.to(self.device)
             end_point = self.model(data)
 
