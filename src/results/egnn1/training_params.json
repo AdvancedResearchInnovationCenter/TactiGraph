@@ -1,0 +1,6 @@
+{
+    "model": "egnn1",
+    "extraction_used": "/home/hussain/me/projects/tactile/data/contact_extraction9",
+    "n_epochs": 150,
+    "final_val_loss_degrees": 4.403827232551872
+}

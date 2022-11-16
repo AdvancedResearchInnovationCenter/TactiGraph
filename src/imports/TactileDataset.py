@@ -102,7 +102,7 @@ class TactileDataset(Dataset):
             ret=os.system('rm -rf ' + root + '/processed')
         root = Path(root)
 
-        assert features in ['pol', 'coords', 'all']
+        assert features in ['pol', 'coords', 'all', 'pol_time']
         self.features = features
 
         self.augment = augment
@@ -175,6 +175,11 @@ class TactileDataset(Dataset):
                 feature = feature.view(-1, 1)
             elif self.features == 'coords':
                 feature = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
+            elif self.features == 'pol_time':
+                feature = torch.stack((
+                    torch.tensor(events[:, 3].astype(np.float32)),
+                    coord3 
+                )).T
             elif self.features == 'all':
                 feature = torch.hstack((
                     torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T, 
@@ -185,6 +190,8 @@ class TactileDataset(Dataset):
 
             #edge_index = radius_graph(pos, r=0.1, max_num_neighbors=10)
             edge_index = knn_graph(pos, knn)
+            if self.features == 'pol_time':
+                pos = pos[:, :2]
 
             #edge_index, _, mask = remove_isolated_nodes(edge_index=edge_index, num_nodes=feature.shape[0])
 
