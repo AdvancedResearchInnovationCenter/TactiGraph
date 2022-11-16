@@ -182,6 +182,7 @@ MH_files/
 plots/
 *.pdf
 *.bag
+model
 experimental/
 catkin_ws/
 egnn/

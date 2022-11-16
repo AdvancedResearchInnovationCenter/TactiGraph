@@ -20,15 +20,16 @@ class TrainModel():
         transform = None,
         features = 'all',
         weight_decay=0,
-        batch = 1
+        batch = 1,
+        augment=False
         ):
 
         self.extraction_case_dir = Path(extraction_case_dir)
         self.transform = transform
 
-        self.train_data = TactileDataset(self.extraction_case_dir / 'train', transform=transform, features=features)
-        self.val_data = TactileDataset(self.extraction_case_dir / 'val', transform=transform, features=features)
-        self.test_data = TactileDataset(self.extraction_case_dir / 'test', transform=transform, features=features)
+        self.train_data = TactileDataset(self.extraction_case_dir / 'train', transform=transform, features=features, augment=augment)
+        self.val_data = TactileDataset(self.extraction_case_dir / 'val', features=features)
+        self.test_data = TactileDataset(self.extraction_case_dir / 'test', features=features)
 
         self.train_loader = pyg.loader.DataLoader(self.train_data, shuffle=True, batch_size=batch)
         self.val_loader = pyg.loader.DataLoader(self.val_data)
@@ -66,14 +67,12 @@ class TrainModel():
             val_loss = torch.inf
             with tqdm(self.train_loader, unit="batch") as tepoch:
                 for i, data in enumerate(tepoch):
-                    
                     tepoch.set_description(f"Epoch {epoch}")
                     with torch.autograd.detect_anomaly():
                         data = data.to(self.device)
                         self.optimizer.zero_grad()
                         end_point = self.model(data)
-
-                        loss = self.loss_func(end_point[0], data.y)
+                        loss = self.loss_func(end_point, data.y)
                         loss.backward()
                         self.optimizer.step()
                         lr = self.optimizer.param_groups[0]['lr']
@@ -96,7 +95,7 @@ class TrainModel():
                 self.val_losses.append(val_loss)
             if (epoch + 1) % 1 == 0:
                 self.log(current_epoch=epoch)
-        torch.save(self.model, path / 'model')
+        torch.save(self.model, path / 'model.pt')
 
     def validate(self):
         loss = 0
@@ -104,7 +103,7 @@ class TrainModel():
             data = data.to(self.device)
             end_point = self.model(data)
 
-            loss += self.loss_func(end_point[0], data.y).detach().item()
+            loss += self.loss_func(end_point, data.y).detach().item()
         loss /= len(self.val_data)
         return loss
     
@@ -114,7 +113,7 @@ class TrainModel():
             data = data.to(self.device)
             end_point = self.model(data)
 
-            loss += self.loss_func(end_point[0], data.y).detach().item()
+            loss += self.loss_func(end_point, data.y).detach().item()
         loss /= len(self.train_data)
         return loss
 

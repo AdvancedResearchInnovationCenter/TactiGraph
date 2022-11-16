@@ -32,6 +32,46 @@ from torch_geometric.utils import remove_isolated_nodes
 im_height=260
 im_width=346
 
+possible_angle = [0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
+N_examples = 17
+list_of_rotations = [[0, 0, 0]]
+
+for i in range(1, N_examples):
+    theta = i * 2 * np.pi/(N_examples - 1)
+    for phi in possible_angle:
+        rx = phi * np.cos(theta)
+        ry = phi * np.sin(theta)
+        rotvec = [rx, ry, 0]
+        list_of_rotations.append(rotvec)
+
+cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
+cases_dict[0] = [0, 0]
+
+def rotate_case(ev_arr, label, angle):
+    theta = np.radians(angle)
+    c, s = np.cos(theta), np.sin(theta)
+    R = np.array(((c, -s), (s, c)))
+    
+    centered = ev_arr[:, :2] - np.array([157, 124])
+    rot_ev = (R @ centered.T).T + np.array([157, 124])
+    
+    rot_v = np.array(cases_dict[label])
+    new_rot_v = R @ rot_v
+    #print(new_rot_v, cases_dict[label])
+
+    best_rot_diff = 100
+    best_rot_idx = 1
+    i = 1
+    
+    for rot in list_of_rotations:
+        diff_vals = np.sqrt( np.power(rot[0] - new_rot_v[0], 2) +  np.power(rot[1] - new_rot_v[1], 2))
+        if best_rot_diff > diff_vals:
+            best_rot_diff = diff_vals
+            best_rot_idx = i
+        i = i + 1
+    
+    return best_rot_idx, np.concatenate([rot_ev.astype(int), ev_arr[:, 2:]], -1)
+
 def files_exist(files):
     return all([osp.exists(f) for f in files])
 
@@ -47,7 +87,7 @@ class TactileDataset(Dataset):
             reset (bool, optional): _description_. Defaults to False.
     """
 
-    def __init__(self, root, transform=None, pre_transform=None, features='all', reset=False):
+    def __init__(self, root, transform=None, pre_transform=None, features='all', reset=False, augment=False):
         """_summary_
 
         Args:
@@ -65,6 +105,7 @@ class TactileDataset(Dataset):
         assert features in ['pol', 'coords', 'all']
         self.features = features
 
+        self.augment = augment
         super(TactileDataset, self).__init__(root, transform, pre_transform)
         self._indices = None
         
@@ -92,10 +133,33 @@ class TactileDataset(Dataset):
     def indices(self) -> Sequence:
         return range(self.__len__()) if self._indices is None else self._indices
 
+    def sample_generator(self, samples_):
+        for key, sample in samples_.items():
+            case = sample['case']
+            event_array = np.array(sample['events'])
+            if not self.augment:
+               yield case, event_array 
+            else:
+                for angle in [0, 90, 180, 270]:
+                    if angle == 0:
+                        yield case, event_array
+                    else:
+                        yield rotate_case(event_array, case, angle)
+
     def process(self):
         knn = 32
         with open(self.root / 'raw' / 'contact_cases.json', 'r') as f:
-            samples = json.load(f)
+            samples_ = json.load(f)
+
+        samples = samples_
+        if self.augment:
+            samples = {}
+            for i, (case, event_array) in enumerate(self.sample_generator(samples_)):
+                samples[f'sample_{i+1}'] = {
+                    'events': event_array,
+                    'case': case
+                }
+                
 
         for sample_id in samples.keys():
             events = np.array(samples[sample_id]['events'])
@@ -130,7 +194,7 @@ class TactileDataset(Dataset):
             pseudo_maker = T.Cartesian(cat=False, norm=True)
             
 
-            y = torch.tensor(np.array(cases_dict[case], dtype=np.float32))
+            y = torch.tensor(np.array(cases_dict[case], dtype=np.float32)).reshape(1, -1)
 
             data = Data(x=feature, edge_index=edge_index, pos=pos, y=y)
             data = pseudo_maker(data)
