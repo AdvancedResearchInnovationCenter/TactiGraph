@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
+EXTRACTIONS_DIR = Path('../data/extractions')
+
 possible_angle = [0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
 N_examples = 17
 list_of_rotations = [[0, 0, 0]]
@@ -21,6 +23,7 @@ for i in range(1, N_examples):
 cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
 cases_dict[0] = [0, 0]
 
+center = (157, 124)
 dist_from_center = lambda x, y: np.sqrt((x - 157)**2 + (y - 124)**2)
 circle_rad=90
 
@@ -54,32 +57,39 @@ class ExtractContactCases:
     def __init__(
         self,
         outdir,
-        bag_file_name='/data/dataset_ENVTACT_new2.bag',     
+        bag_file_name='../data/bags/dataset_ENVTACT_new2.bag',     
         delta_t = 0.025e9,
         margin = -0.025e9,
+        case_span = 2.66e9,
         max_events_thresh = 2000,
-        augment = False,
         train_prop = 0.6,
-        _keep_raw = False
-    ):
-        self.outdir = Path(outdir)
+        center = (157, 124),
+        circle_rad=90,
+        keep_interm = False
+        ):
+        self.outdir = EXTRACTIONS_DIR / outdir
         self.bag_file_name = bag_file_name
 
         self.parsed = False
 
         self.train_prop = train_prop 
-        self.augment = augment
         self.delta_t = delta_t
         self.margin = margin
         self.max_events_thresh = max_events_thresh
-        self._keep_raw = _keep_raw
+        self.center = center
+        self.circle_rad = circle_rad
+        self.dist_from_center = lambda x, y: np.sqrt((x - self.center[0])**2 + (y - self.center[1])**2)
+        self.case_span = case_span
+        self.keep_interm = keep_interm
         
         self.params = {
+            'bag': bag_file_name,
             'train_prop': train_prop,
-            'augment': augment,
             'delta_t': delta_t,
             'margin': margin,
-            'max_events_thresh': max_events_thresh
+            'max_events_thresh': max_events_thresh,
+            'center': center,
+            'case_span': case_span
         }
         
 
@@ -91,8 +101,15 @@ class ExtractContactCases:
         contact_angle = []
         contact_angle = []
 
+        topics = ['/contact_status', '/dvs/events', '/contact_angle']
+
         for topic, msg, t in tqdm(
-            bag_file.read_messages(topics=['/contact_status', '/dvs/events', '/contact_angle']), desc='parsing bag'):
+            bag_file.read_messages(
+                topics=topics), 
+                total=sum([bag_file.get_message_count(top) for top in topics]),
+                desc='parsing bag',
+                unit='msg'
+                ):
             if topic == '/dvs/events':
                 for e in msg.events:
                     event = [e.x, e.y, e.ts.to_nsec(), e.polarity]
@@ -108,13 +125,13 @@ class ExtractContactCases:
         #print(events)
         bag_file.close()
 
-        self.case_span = 2.66e9
         self.find_ts_idx = lambda ts: np.searchsorted(contact_status_ts, ts)
 
         i = 0 
         cases_ts = []
         cases_idx = []
         cases = []
+        pbar = tqdm(total=len(contact_status), desc='extracting contact timestamps')
         while i < len(contact_status):
             if contact_status[i]:
                 init_ts = contact_status_ts[i]
@@ -126,9 +143,12 @@ class ExtractContactCases:
                 cases_ts.append([init_ts, fin_ts])
                 cases_idx.append([i, fin_idx])
                 #print(len(cases_ts), init_ts, fin_ts, (fin_ts - init_ts)*1e-9, i, fin_idx, case, '\n')
+                pbar.update(fin_idx + 1 - i)
                 i = fin_idx + 1
             else:
                 i += 1
+                pbar.update(1)
+        pbar.close()
 
         self.events = np.array(events)
         self.cases_idx = cases_idx
@@ -185,6 +205,16 @@ class ExtractContactCases:
         return best_rot_idx
 
     def _save(self, samples):
+        if not self.outdir.exists():
+            self.outdir.mkdir(parents=True)
+
+        with open(self.outdir / 'extraction_params.json', 'w') as f:
+            json.dump(self.params, f, indent=4)
+        
+        with open(self.outdir / 'samples.json', 'w') as f:
+            json.dump(samples, f, indent=4)
+
+    def __save(self, samples):
         if self._keep_raw:
             self.samples = samples
         sample_idx = list(samples.keys())
@@ -194,6 +224,7 @@ class ExtractContactCases:
         
         cases = [str(samples[s_idx]['case']) for s_idx in val_test_idx]
         val_idx, test_idx = train_test_split(val_test_idx, stratify=cases, test_size=0.5, random_state=0) #fixed across extractions
+
         print(len(train_idx), len(val_idx), len(test_idx))
         subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
         
@@ -214,18 +245,6 @@ class ExtractContactCases:
                     sample['total_idx'] = subset_idx
                     subset_samples[f'sample_{i+1}'] = sample
                 json.dump(subset_samples, f, indent=4)
-
-
-    def sample_generator(self, label_contact_case, event_arrays):
-        for case, event_array in zip(label_contact_case, event_arrays):
-            if not self.augment:
-               yield case, event_array 
-            else:
-                for angle in [0, 90, 180, 270]:
-                    if angle == 0:
-                        yield case, event_array, False
-                    else:
-                        yield rotate_case(event_array, case, angle), True
             
     def extract(self):
         if not self.parsed:
@@ -237,7 +256,7 @@ class ExtractContactCases:
         event_arrays = []
         label_contact_case = []
         ts = np.array(self.events)[:, 2]
-        for i, idx in enumerate(tqdm(self.cases_idx)):
+        for i, idx in enumerate(tqdm(self.cases_idx, desc='extracting event arrays')):
             init_ts_idx = np.searchsorted(ts, self.cases_ts[i][0] + self.margin)
             fin_ts_idx = np.searchsorted(ts, self.cases_ts[i][0] + self.delta_t)
             if fin_ts_idx - init_ts_idx + 1 < 200:
@@ -254,7 +273,7 @@ class ExtractContactCases:
 
         samples={}
         
-        gen = self.sample_generator(label_contact_case, event_arrays) 
+        gen = zip(label_contact_case, event_arrays) 
         for i, (case, event_array) in enumerate(gen):
             samples[f'sample_{i+1}'] = {
                 'events': event_array.tolist(),
@@ -263,5 +282,7 @@ class ExtractContactCases:
 
         print("saving")
         self.params['n'] = len(samples)
-        self._save(samples)
-        
+
+    def load(self):
+        with open(self.outdir / 'samples.json', 'r') as f:
+            return json.load(f)

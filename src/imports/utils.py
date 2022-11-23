@@ -24,6 +24,7 @@ def events_plot_3d(events_data):
     
 import seaborn as sns
 def plot(ev):
+    ev = np.array(ev)
     plt.figure(figsize=(5, 5))
     print(ev.shape)
     
