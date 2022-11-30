@@ -2,5 +2,5 @@
     "model": "nvs_no_skip",
     "extraction_used": "/home/hussain/tactile/data/contact_extraction10",
     "n_epochs": 150,
-    "final_val_loss_degrees": 4.33864313792677
+    "final_val_loss_degrees": 7.204404175704401
 }

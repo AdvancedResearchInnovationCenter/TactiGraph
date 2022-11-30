@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
-EXTRACTIONS_DIR = Path('../data/extractions')
+EXTRACTIONS_DIR = Path('../data/extractions').resolve()
 
 possible_angle = [0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
 N_examples = 17
@@ -281,6 +281,7 @@ class ExtractContactCases:
                 }
 
         print("saving")
+        self._save(samples)
         self.params['n'] = len(samples)
 
     def load(self):
