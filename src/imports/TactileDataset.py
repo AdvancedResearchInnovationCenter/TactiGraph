@@ -26,14 +26,13 @@ import torch
 from torch_geometric.data import Dataset
 from torch_geometric.data import Data
 from torch_geometric.nn.pool import radius_graph, knn_graph
-from imports.ExtractContactCases import cases_dict
 from torch_geometric.utils import remove_isolated_nodes
 
 im_height=260
 im_width=346
 
-possible_angle = [0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
-N_examples = 17
+possible_angle =  [np.radians(i) for i in range(1,11)]#[0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
+N_examples = 20
 list_of_rotations = [[0, 0, 0]]
 
 for i in range(1, N_examples):
@@ -43,6 +42,9 @@ for i in range(1, N_examples):
         ry = phi * np.sin(theta)
         rotvec = [rx, ry, 0]
         list_of_rotations.append(rotvec)
+
+print(len(list_of_rotations))
+print(list_of_rotations)
 
 cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
 cases_dict[0] = [0, 0]
@@ -188,8 +190,8 @@ class TactileDataset(Dataset):
 
             case = samples[sample_id]['case']
 
-            #edge_index = radius_graph(pos, r=0.1, max_num_neighbors=10)
-            edge_index = knn_graph(pos, knn)
+            edge_index = radius_graph(pos, r=0.1, max_num_neighbors=16)
+            #edge_index = knn_graph(pos, knn)
             if self.features == 'pol_time':
                 pos = pos[:, :2]
 

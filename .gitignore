@@ -186,3 +186,6 @@ model
 experimental/
 catkin_ws/
 egnn/
+repos/
+ros/
+*.hd

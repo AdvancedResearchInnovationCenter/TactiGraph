@@ -2,10 +2,11 @@ import json
 import torch
 import torch_geometric as pyg
 from tqdm.auto import tqdm, trange  
-from .TactileDataset import TactileDataset
 from pathlib import Path
 from numpy import pi
 from pandas import DataFrame
+from .TactileDataset import TactileDataset
+import numpy as np
 
 class TrainModel():
 
@@ -22,7 +23,8 @@ class TrainModel():
         weight_decay=0,
         patience=10,
         batch = 1,
-        augment=False
+        augment=False,
+        seed=0
         ):
 
         self.extraction_case_dir = Path(extraction_case_dir)
@@ -50,12 +52,15 @@ class TrainModel():
         self.loss_func = loss_func
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        torch.manual_seed(0)
+        np.random.seed(0)
         
 
     def train(self):
         self.train_losses = []
         self.val_losses = []
         self.lr = []
+        self.max_losses = []
 
         name = str(type(self.model)).split('.')[-1][:-2]
         path = Path('results') / name
@@ -63,6 +68,19 @@ class TrainModel():
         for epoch in trange(self.n_epochs, desc='training', unit='epoch'):
             #bunny(epoch)
             epoch_loss = 0
+            
+            if (epoch == 25):
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = 0.001
+    
+            if epoch == 110:
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = 0.0001
+
+            if epoch == 200:
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = 0.00001
+                    
             lr = self.optimizer.param_groups[0]['lr']
             self.lr.append(lr)
             val_loss = torch.inf
@@ -85,12 +103,14 @@ class TrainModel():
                             'train_loss_degrees': epoch_loss / (i + 1) * 180/pi, 
                             'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
                             'val_loss_degrees': self.val_losses[epoch - 1] * 180/pi if epoch > 0 else 'na',
+                            'max_loss_degree': self.max_losses[epoch - 1] * 180/pi if epoch >0 else 'na',
                             'lr': lr
                             })
 
-                self.scheduler.step(val_loss)
-                epoch_loss /= len(self.train_data)
-                val_loss = self.validate()
+                #self.scheduler.step(val_loss)
+                epoch_loss /= i + 1
+                val_loss, max_loss = self.validate()
+                self.max_losses.append(max_loss)
                 tepoch.set_postfix({'train_loss': epoch_loss, 'val_loss': val_loss})
                 self.train_losses.append(epoch_loss)
                 self.val_losses.append(val_loss)
@@ -100,13 +120,15 @@ class TrainModel():
 
     def validate(self):
         loss = 0
+        losses = []
         for i, data in enumerate(self.val_loader):      
             data = data.to(self.device)
             end_point = self.model(data)
-
-            loss += self.loss_func(end_point, data.y).detach().item()
+            l = self.loss_func(end_point, data.y).detach().item()
+            loss += l
+            losses.append(l)
         loss /= len(self.val_data)
-        return loss
+        return loss, max(losses)
     
     def test(self):
         loss = 0
@@ -115,7 +137,7 @@ class TrainModel():
             end_point = self.model(data)
 
             loss += self.loss_func(end_point, data.y).detach().item()
-        loss /= len(self.train_data)
+        loss /= len(self.test_data)
         return loss
 
     def augment(self, batch):
@@ -142,74 +164,8 @@ class TrainModel():
             'epoch': [i for i in range(1, current_epoch+2)],
             'train_loss': self.train_losses,
             'val_loss': self.val_losses,
+            'max_loss': self.max_losses,
             'lr': self.lr
         }
         DataFrame(train_log).to_csv(path / 'train_log.csv', index=False)
 
-
-
-class TrainModel_cosine(TrainModel):
-    def __init__(
-        self, 
-        extraction_case_dir, 
-        model, 
-        n_epochs=150, 
-        optimizer='adam', 
-        lr=0.001, 
-        loss_func=torch.nn.L1Loss(), 
-        transform=None, 
-        features='all', 
-        weight_decay=0,
-        T_max = 10,
-        batch = 1
-        ):
-        super().__init__(extraction_case_dir, model, n_epochs, optimizer, lr, loss_func, transform, features, weight_decay, batch)
-        self.scheduler = torch.optim.lr_scheduler.CyclicLR(self.optimizer, base_lr=1e-5, max_lr=0.01,step_size_up=10,mode="triangular2", cycle_momentum=False)
-
-    def train(self):
-        self.train_losses = []
-        self.val_losses = []
-        self.lr = []
-
-        name = str(type(self.model)).split('.')[-1][:-2]
-        path = Path('results') / name
-
-        for epoch in trange(self.n_epochs, desc='training', unit='epoch'):
-            #bunny(epoch)
-            epoch_loss = 0
-            lr = self.optimizer.param_groups[0]['lr']
-            self.lr.append(lr)
-            val_loss = torch.inf
-            with tqdm(self.train_loader, unit="batch") as tepoch:
-                for i, data in enumerate(tepoch):
-                    
-                    tepoch.set_description(f"Epoch {epoch}")
-                    with torch.autograd.detect_anomaly():
-                        data = data.to(self.device)
-                        self.optimizer.zero_grad()
-                        end_point = self.model(data)
-
-                        loss = self.loss_func(end_point[0], data.y)
-                        loss.backward()
-                        self.optimizer.step()
-                        lr = self.optimizer.param_groups[0]['lr']
-                        
-                        epoch_loss += loss.detach().item()
-                    
-                        tepoch.set_postfix({
-                            'train_loss': epoch_loss / (i + 1), 
-                            'train_loss_degrees': epoch_loss / (i + 1) * 180/pi, 
-                            'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
-                            'val_loss_degrees': self.val_losses[epoch - 1] * 180/pi if epoch > 0 else 'na',
-                            'lr': lr
-                            })
-                       
-                self.scheduler.step()
-                epoch_loss /= len(self.train_data)
-                val_loss = self.validate()
-                tepoch.set_postfix({'train_loss': epoch_loss, 'val_loss': val_loss})
-                self.train_losses.append(epoch_loss)
-                self.val_losses.append(val_loss)
-            if (epoch + 1) % 1 == 0:
-                self.log(current_epoch=epoch)
-        torch.save(self.model, path / 'model.pt')
