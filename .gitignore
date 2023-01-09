@@ -189,3 +189,4 @@ egnn/
 repos/
 ros/
 *.hd
+watch_remote.py

@@ -2,6 +2,7 @@
 from __future__ import division
 import os.path as osp
 import glob
+from pprint import pprint
 import torch
 import torch_geometric.transforms as T
 import os
@@ -27,27 +28,30 @@ from torch_geometric.data import Dataset
 from torch_geometric.data import Data
 from torch_geometric.nn.pool import radius_graph, knn_graph
 from torch_geometric.utils import remove_isolated_nodes
+import math
+import json
 
 im_height=260
 im_width=346
 
-possible_angle =  [np.radians(i) for i in range(1,11)]#[0.0174532925, 0.034906585, 0.0523598776, 0.075, 0.095, 0.115, 0.135, 0.15]#
-N_examples = 20
-list_of_rotations = [[0, 0, 0]]
+# possible_angle = [math.radians(9)]#[math.radians(3), math.radians(6), math.radians(9), math.radians(12)]
+# N_examples = 5
+# list_of_rotations = [[0, 0, 0]]
 
-for i in range(1, N_examples):
-    theta = i * 2 * np.pi/(N_examples - 1)
-    for phi in possible_angle:
-        rx = phi * np.cos(theta)
-        ry = phi * np.sin(theta)
-        rotvec = [rx, ry, 0]
-        list_of_rotations.append(rotvec)
+# for i in range(1, N_examples):
+#     theta = [np.nan, 0, math.pi/6, math.pi/3, math.pi/2][i]#math.pi/2 #i * 2 * math.pi/(N_examples - 1)
+#     for phi in possible_angle:
+#         rx = phi * math.cos(theta)
+#         ry = phi * math.sin(theta)
+#         rotvec = [rx, ry, 0]
+#         list_of_rotations.append(rotvec)
 
-print(len(list_of_rotations))
-print(list_of_rotations)
+# print(len(list_of_rotations))
+# print(list_of_rotations)
 
-cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
-cases_dict[0] = [0, 0]
+# cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
+# cases_dict[0] = [0, 0]
+# cases_dict
 
 def rotate_case(ev_arr, label, angle):
     theta = np.radians(angle)
@@ -89,7 +93,16 @@ class TactileDataset(Dataset):
             reset (bool, optional): _description_. Defaults to False.
     """
 
-    def __init__(self, root, transform=None, pre_transform=None, features='all', reset=False, augment=False):
+    def __init__(
+        self, 
+        root, 
+        transform=None, 
+        pre_transform=None, 
+        features='all', 
+        temporal_edge_order=True, 
+        reset=False, 
+        augment=False
+        ):
         """_summary_
 
         Args:
@@ -102,12 +115,34 @@ class TactileDataset(Dataset):
         if reset:
             print('rm -rf ' + root + '/processed')
             ret=os.system('rm -rf ' + root + '/processed')
-        root = Path(root)
+        root = Path(root).resolve()
 
         assert features in ['pol', 'coords', 'all', 'pol_time']
         self.features = features
 
         self.augment = augment
+        self.temporal_edge_order = temporal_edge_order
+        
+        with open(root.parent / 'extraction_params.json', 'r') as f:
+            self.params = json.load(f)
+        
+        possible_angle = self.params['possible_angles']
+        N_examples = self.params['N_examples']
+        list_of_rotations = [[0, 0, 0]]
+
+        for i in range(1, N_examples):
+            theta = i * 2 * math.pi/(N_examples - 1) if self.params['theta'] == 'full' else self.params['theta'][i]
+            for phi in possible_angle:
+                rx = phi * math.cos(theta)
+                ry = phi * math.sin(theta)
+                rotvec = [rx, ry, 0]
+                list_of_rotations.append(rotvec)
+
+
+        cases_dict = {i+1: list_of_rotations[i][:2] for i in range(len(list_of_rotations))}
+        cases_dict[0] = [0, 0]
+        self.cases_dict = cases_dict
+
         super(TactileDataset, self).__init__(root, transform, pre_transform)
         self._indices = None
         
@@ -149,7 +184,6 @@ class TactileDataset(Dataset):
                         yield rotate_case(event_array, case, angle)
 
     def process(self):
-        knn = 32
         with open(self.root / 'raw' / 'contact_cases.json', 'r') as f:
             samples_ = json.load(f)
 
@@ -190,7 +224,10 @@ class TactileDataset(Dataset):
 
             case = samples[sample_id]['case']
 
-            edge_index = radius_graph(pos, r=0.1, max_num_neighbors=16)
+            edge_index = radius_graph(pos, r=0.05, max_num_neighbors=16, )
+            if self.temporal_edge_order:
+                row, col = edge_index
+
             #edge_index = knn_graph(pos, knn)
             if self.features == 'pol_time':
                 pos = pos[:, :2]
@@ -203,7 +240,7 @@ class TactileDataset(Dataset):
             pseudo_maker = T.Cartesian(cat=False, norm=True)
             
 
-            y = torch.tensor(np.array(cases_dict[case], dtype=np.float32)).reshape(1, -1)
+            y = torch.tensor(np.array(self.cases_dict[case], dtype=np.float32)).reshape(1, -1)
 
             data = Data(x=feature, edge_index=edge_index, pos=pos, y=y)
             data = pseudo_maker(data)
@@ -216,21 +253,19 @@ class TactileDataset(Dataset):
 
             torch.save(data, self.root / 'processed' / f'{sample_id}.pt')
 
-        with open(self.root.parent / 'extraction_params.json', 'r') as f:
-            params = json.load(f)
+
         
-        params['kNN'] = knn
-        params['node_features'] = self.features
-        print(params)
+        self.params['node_features'] = self.features
+        pprint(self.params)
         with open(self.root.parent / 'extraction_params.json', 'w') as f:
-            json.dump(params, f, indent=4)
+            json.dump(self.params, f, indent=4)
             
             
 
     def get(self, idx):
         # print("I'm in get ", self.processed_dir)
 
-        data = torch.load(osp.join(self.processed_paths[idx]))
+        data = torch.load(self.root / 'processed' / f'sample_{idx+1}.pt')
         return data
 
     def load_all_raw(self):
