@@ -37,7 +37,7 @@ class RotateEvents(EventArrayAugmentation):
         self.angle = angle
 
 
-    def augment(self, ev_arr, label):
+    def augment(self, ev_arr, case):
 
         self.list_of_rotations = [[0, 0, 0]]
 
@@ -59,13 +59,13 @@ class RotateEvents(EventArrayAugmentation):
         R = np.array(((c, -s), (s, c)))
         
         centered = ev_arr[:, :2] - np.array(self.center)
-        centered[:, 1] = 260 - centered[:, 1]
+        centered[:, 1] = - centered[:, 1]
         rot_ev = (R @ centered.T).T 
-        rot_ev[:, 1] = 260 - rot_ev[:, 1]
+        rot_ev[:, 1] = - rot_ev[:, 1]
         rot_ev += np.array(self.center)
 
         
-        rot_v = np.array(self.cases_dict[label])
+        rot_v = np.array(self.cases_dict[case])
         new_rot_v = R @ rot_v
 
         best_rot_diff = 100

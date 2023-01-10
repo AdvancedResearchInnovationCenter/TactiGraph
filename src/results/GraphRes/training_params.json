@@ -1,6 +1,6 @@
 {
     "model": "GraphRes",
-    "extraction_used": "../data/small/contact_extraction2",
+    "extraction_used": "../data/small/contact_extraction5",
     "n_epochs": 300,
-    "final_val_loss_degrees": 32.15210365376861
+    "final_val_loss_degrees": 3.539576997105253
 }

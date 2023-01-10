@@ -53,31 +53,6 @@ im_width=346
 # cases_dict[0] = [0, 0]
 # cases_dict
 
-def rotate_case(ev_arr, label, angle):
-    theta = np.radians(angle)
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array(((c, -s), (s, c)))
-    
-    centered = ev_arr[:, :2] - np.array([157, 124])
-    rot_ev = (R @ centered.T).T + np.array([157, 124])
-    
-    rot_v = np.array(cases_dict[label])
-    new_rot_v = R @ rot_v
-    #print(new_rot_v, cases_dict[label])
-
-    best_rot_diff = 100
-    best_rot_idx = 1
-    i = 1
-    
-    for rot in list_of_rotations:
-        diff_vals = np.sqrt( np.power(rot[0] - new_rot_v[0], 2) +  np.power(rot[1] - new_rot_v[1], 2))
-        if best_rot_diff > diff_vals:
-            best_rot_diff = diff_vals
-            best_rot_idx = i
-        i = i + 1
-    
-    return best_rot_idx, np.concatenate([rot_ev.astype(int), ev_arr[:, 2:]], -1)
-
 def files_exist(files):
     return all([osp.exists(f) for f in files])
 
@@ -126,6 +101,7 @@ class TactileDataset(Dataset):
         with open(root.parent / 'extraction_params.json', 'r') as f:
             self.params = json.load(f)
         
+        print(self.params)
         possible_angle = self.params['possible_angles']
         N_examples = self.params['N_examples']
         list_of_rotations = [[0, 0, 0]]
