@@ -1,0 +1,1 @@
+aegnn model small on raidal data 24 iters. bigger val

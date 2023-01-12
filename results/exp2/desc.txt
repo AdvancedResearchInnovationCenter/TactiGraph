@@ -1,0 +1,1 @@
+aegnn model small on raidal data augmented 12 iters

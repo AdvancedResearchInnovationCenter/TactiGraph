@@ -1,0 +1,6 @@
+{
+    "model": "exp4",
+    "extraction_used": "/home/hussain/me/projects/tactile/data/small/contact_extraction4",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 2.436325584785321
+}

@@ -1,0 +1,1 @@
+aegnn small model on small adial data with 5 iters

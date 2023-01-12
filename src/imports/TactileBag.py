@@ -1,8 +1,14 @@
 from pathlib import Path
 import dask.array as da
 import json 
-from rospy import Time
-import rosbag
+
+
+try:
+    import rosbag
+    from rospy import Time
+except ImportError:
+    print('ROS not found')
+
 import pandas as pd
 from tqdm.auto import tqdm
 import numpy as np
@@ -12,7 +18,19 @@ class TactileBag:
     def __init__(self, path) -> None:
         self.path = Path(path).resolve()
     
-    def parse(self, possible_angles, N_examples, theta, N_iters=12, z_thresh=-0.0037, min_z=-0.015, max_z=0.035, start_time=0):
+    def parse(
+        self, 
+        possible_angles, 
+        N_examples, 
+        theta, 
+        N_iters=12, 
+        z_thresh=-0.0037, 
+        min_z=-0.015, 
+        max_z=0.035, 
+        start_time=0,
+        led=1,
+        bg_filter=80
+        ):
         params = {
             'path': str(self.path),
             'possible_angles': possible_angles,
@@ -21,7 +39,9 @@ class TactileBag:
             'N_iters': N_iters,
             'z_thresh': z_thresh,
             'min_z': min_z,
-            'max_z': max_z
+            'max_z': max_z,
+            'led': led,
+            'bg_filter': 80
         }
 
         with open(self.path / 'params.json', 'w') as f:

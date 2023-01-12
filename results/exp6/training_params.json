@@ -1,0 +1,6 @@
+{
+    "model": "exp6",
+    "extraction_used": "/home/hussain/me/projects/tactile/data/small/dense_quarter",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 7.892374939729883
+}

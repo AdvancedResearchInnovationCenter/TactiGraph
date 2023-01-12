@@ -1,0 +1,6 @@
+{
+    "model": "exp2",
+    "extraction_used": "../data/small/contact_extraction3",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 3.165773790558987
+}

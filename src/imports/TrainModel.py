@@ -7,6 +7,8 @@ from numpy import pi
 from pandas import DataFrame
 from .TactileDataset import TactileDataset
 import numpy as np
+import warnings
+from itertools import chain
 
 class TrainModel():
 
@@ -14,6 +16,8 @@ class TrainModel():
         self, 
         extraction_case_dir, 
         model,
+        experiment_name,
+        desc,
         n_epochs = 150,
         optimizer = 'adam',
         lr = 0.001,
@@ -24,16 +28,26 @@ class TrainModel():
         patience=10,
         batch = 1,
         augment=False,
-        seed=0
+        seed=0,
+        merge_test_val = False
         ):
 
+        path = Path('../results').resolve() / experiment_name
+        exp_exists = path.exists()
+        
+        if exp_exists:
+            warnings.warn(f'experiment {str(path)} already exists. Press enter to proceed overwriting.')
+        
+        if not path.exists():
+            path.mkdir(parents=True)
+        self.path = path
         self.extraction_case_dir = Path(extraction_case_dir)
         self.transform = transform
-
+        self.experiment_name = experiment_name
         self.train_data = TactileDataset(self.extraction_case_dir / 'train', transform=transform, features=features, augment=augment)
         self.val_data = TactileDataset(self.extraction_case_dir / 'val', features=features)
         self.test_data = TactileDataset(self.extraction_case_dir / 'test', features=features)
-
+        
         self.train_loader = pyg.loader.DataLoader(self.train_data, shuffle=True, batch_size=batch)
         self.val_loader = pyg.loader.DataLoader(self.val_data)
         self.test_loader = pyg.loader.DataLoader(self.test_data)
@@ -41,6 +55,7 @@ class TrainModel():
         self.model = model
         self.n_epochs = n_epochs
 
+        self.desc = desc
 
         if optimizer == 'adam':
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -116,8 +131,12 @@ class TrainModel():
                 self.val_losses.append(val_loss)
             if (epoch + 1) % 1 == 0:
                 self.log(current_epoch=epoch)
-        torch.save(self.model, path / 'model.pt')
-
+            
+            if (epoch + 1) % 10 == 0:
+                torch.save(self.model.state_dict(), self.path / f'ckpt_{epoch+1}')
+        torch.save(self.model.state_dict(), self.path / 'state_dict')
+        torch.save(self.model, self.path / 'model')
+        
     def validate(self):
         loss = 0
         losses = []
@@ -127,7 +146,7 @@ class TrainModel():
             l = self.loss_func(end_point, data.y).detach().item()
             loss += l
             losses.append(l)
-        loss /= len(self.val_data)
+        loss /= len(self.val_loader)
         return loss, max(losses)
     
     def test(self):
@@ -146,15 +165,14 @@ class TrainModel():
     def log(self, current_epoch):
         #find model name
         print('logging')
-        name = str(type(self.model)).split('.')[-1][:-2]
-        path = Path('results') / name
-        if not path.exists():
-            path.mkdir(parents=True)
 
-        with open(path / 'training_params.json', 'w') as f:
+        with open(self.path / 'desc.txt', 'w') as f:
+            f.write(self.desc)
+
+        with open(self.path / 'training_params.json', 'w') as f:
             params = {
-                'model': name,
-                'extraction_used': str(self.extraction_case_dir),
+                'model': self.experiment_name,
+                'extraction_used': str(self.extraction_case_dir.resolve()),
                 'n_epochs': self.n_epochs,
                 'final_val_loss_degrees': self.val_losses[-1] * 180 / pi,
             }
@@ -167,5 +185,5 @@ class TrainModel():
             'max_loss': self.max_losses,
             'lr': self.lr
         }
-        DataFrame(train_log).to_csv(path / 'train_log.csv', index=False)
+        DataFrame(train_log).to_csv(self.path / 'train_log.csv', index=False)
 
