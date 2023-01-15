@@ -644,14 +644,15 @@ class ExtractContactCases:
         label_contact_case = []
 
         guess_idx = 0
-
+        dropped_cases = 0
         for i, idx in enumerate(tqdm(self.cases_idx, desc='extracting event arrays')):
             init_ts_idx = self.ev_ts2idx(self.cases_ts[i][0] + self.margin, guess_idx)
             ev_idx_init.append(init_ts_idx)
             guess_idx = init_ts_idx
             fin_ts_idx = self.ev_ts2idx(self.cases_ts[i][0] + self.delta_t, guess_idx)#da.searchsorted(events[:, 2], da.array([cases_ts[i][0] + delta_t]))
             guess_idx = fin_ts_idx
-            if fin_ts_idx - init_ts_idx + 1 < 750:
+            if fin_ts_idx - init_ts_idx + 1 < self.min_n_events:
+                dropped_cases += 1
                 continue    
             else:
                 event_array = self.events[init_ts_idx:fin_ts_idx+1].compute()
@@ -670,8 +671,9 @@ class ExtractContactCases:
                 }
 
         print("saving")
-        self._save(samples)
         self.params['n'] = len(samples)
+        self.params['dropped_cases'] = dropped_cases
+        self._save(samples)
 
     def load(self):
         with open(self.outdir / 'samples.json', 'r') as f:

@@ -1,0 +1,6 @@
+{
+    "model": "GraphRes",
+    "extraction_used": "data/extractions/contact_extraction3",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 1.7107395245885892
+}

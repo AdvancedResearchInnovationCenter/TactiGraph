@@ -1,0 +1,6 @@
+{
+    "model": "spline",
+    "extraction_used": "data/extractions/contact_extraction3",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 2.3701780502830054
+}
