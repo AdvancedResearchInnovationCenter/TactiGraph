@@ -404,6 +404,7 @@ class ExtractContactCases:
         case_span = 2.66e9,
         min_n_events = 750,
         n_init_events = 5000,
+        down_sample = 1,
         train_prop = 0.75,
         center = (180, 117),
         circle_rad=85,
@@ -419,6 +420,7 @@ class ExtractContactCases:
         self.margin = margin
         self.min_n_events = min_n_events
         self.n_init_events = n_init_events
+        self.down_sample = down_sample
         self.center = center
         self.circle_rad = circle_rad
         self.dist_from_center = lambda x, y: np.sqrt((x - self.center[0])**2 + (y - self.center[1])**2)
@@ -452,6 +454,7 @@ class ExtractContactCases:
             'margin': margin,
             'min_n_events': min_n_events,
             'n_init_events': n_init_events,
+            'downsample_factor': down_sample,
             'center': center,
             'circle_rad': circle_rad,
             'case_span': case_span,
@@ -596,7 +599,7 @@ class ExtractContactCases:
         val_idx, test_idx = train_test_split(val_test_idx, stratify=cases, test_size=0.5, random_state=0) #fixed across extractions
 
         #print(len(train_idx), len(val_idx), len(test_idx))
-        subsets = zip(['train', 'test', 'val'], [train_idx, val_idx, test_idx])
+        subsets = zip(['train', 'val', 'ttes'], [train_idx, val_idx, test_idx])
         
         if not self.outdir.exists():
             self.outdir.mkdir(parents=True)
@@ -656,10 +659,11 @@ class ExtractContactCases:
                 continue    
             else:
                 event_array = self.events[init_ts_idx:fin_ts_idx+1].compute()
-
-            in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < self.circle_rad  
-            event_arrays.append(event_array[in_circle, :][:self.n_init_events])
-            label_contact_case.append(self.cases[i])
+                in_circle = dist_from_center(event_array[:, 0], event_array[:, 1]) < self.circle_rad  
+                event_array = event_array[in_circle, :][:self.n_init_events]
+                idx_downsample = np.random.choice([0, 1], event_array.shape[0], p=np.array([self.down_sample-1, 1]) / self.down_sample)
+                event_arrays.append(event_array[idx_downsample])
+                label_contact_case.append(self.cases[i])
 
         samples={}
         

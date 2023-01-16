@@ -1,0 +1,6 @@
+{
+    "model": "20ms_allevents",
+    "extraction_used": "/l/proj/kuin0034/hussain/tactile/data/extractions/20ms_allevents",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 1.3213535906349185
+}
