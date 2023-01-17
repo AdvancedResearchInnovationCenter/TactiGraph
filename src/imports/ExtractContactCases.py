@@ -599,7 +599,7 @@ class ExtractContactCases:
         val_idx, test_idx = train_test_split(val_test_idx, stratify=cases, test_size=0.5, random_state=0) #fixed across extractions
 
         #print(len(train_idx), len(val_idx), len(test_idx))
-        subsets = zip(['train', 'val', 'ttes'], [train_idx, val_idx, test_idx])
+        subsets = zip(['train', 'val', 'test'], [train_idx, val_idx, test_idx])
         
         if not self.outdir.exists():
             self.outdir.mkdir(parents=True)

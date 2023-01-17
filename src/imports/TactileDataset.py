@@ -200,9 +200,13 @@ class TactileDataset(Dataset):
 
             case = samples[sample_id]['case']
 
-            edge_index = radius_graph(pos, r=0.05, max_num_neighbors=16, )
+            edge_index = radius_graph(pos, r=0.05, max_num_neighbors=32, )
+
             if self.temporal_edge_order:
                 row, col = edge_index
+                temp_order_edges = pos[row, 2] <= pos[col, 2]
+                edge_index = edge_index[:, temp_order_edges]
+
 
             #edge_index = knn_graph(pos, knn)
             if self.features == 'pol_time':
@@ -213,13 +217,14 @@ class TactileDataset(Dataset):
             #print(edge_index, sum(mask))
             #print(mask.shape, data.x.shape, data.edge_index.shape)
             
-            pseudo_maker = T.Cartesian(cat=False, norm=True)
             
 
             y = torch.tensor(np.array(self.cases_dict[case], dtype=np.float32)).reshape(1, -1)
 
             data = Data(x=feature, edge_index=edge_index, pos=pos, y=y)
-            data = pseudo_maker(data)
+            
+            transforms = T.Compose([T.Cartesian(cat=False, norm=True), T.LargestConnectedComponents(1)])
+            data = transforms(data)
 
             if self.pre_filter is not None and not self.pre_filter(data):
                     continue
