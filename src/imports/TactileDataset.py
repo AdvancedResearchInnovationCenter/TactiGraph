@@ -183,7 +183,7 @@ class TactileDataset(Dataset):
             pos = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
 
             if self.features == 'pol':
-                feature = torch.tensor(events[:, 3].astype(np.float32))
+                feature = torch.tensor(2*events[:, 3].astype(np.float32)-1)
                 feature = feature.view(-1, 1)
             elif self.features == 'coords':
                 feature = torch.stack((coord1 / im_width, coord2 / im_height, coord3)).T
