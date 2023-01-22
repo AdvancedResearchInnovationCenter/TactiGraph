@@ -259,8 +259,11 @@ class ExtractContactCases:
             ev_arr = self.events[ini:fin+1]
             in_circle = dist_from_center(ev_arr[:, 0], ev_arr[:, 1]) < self.circle_rad
             ev_arr = ev_arr[in_circle, :].compute()
+            
+            if len(ev_arr) < self.min_n_events:
+                continue
+            
             idx_downsample = np.random.choice([0, 1], ev_arr.shape[0], p=np.array([self.down_sample-1, 1]) / self.down_sample).astype(bool)
-
             event_arrays.append(ev_arr[idx_downsample])
             label_contact_case.append(self.cases[i])
 
