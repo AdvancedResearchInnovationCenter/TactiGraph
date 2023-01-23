@@ -196,3 +196,4 @@ watch_remote.py
 ckpt_*
 state_*
 e2vid_cnn/
+*.ipynb

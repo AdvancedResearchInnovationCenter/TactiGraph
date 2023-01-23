@@ -125,10 +125,12 @@ class TrainModel():
                 #self.scheduler.step(val_loss)
                 epoch_loss /= i + 1
                 val_loss, max_loss = self.validate()
+                self.model.train()
                 self.max_losses.append(max_loss)
                 tepoch.set_postfix({'train_loss': epoch_loss, 'val_loss': val_loss})
                 self.train_losses.append(epoch_loss)
                 self.val_losses.append(val_loss)
+
             if (epoch + 1) % 1 == 0:
                 self.log(current_epoch=epoch)
             
@@ -140,13 +142,15 @@ class TrainModel():
     def validate(self):
         loss = 0
         losses = []
-        for i, data in enumerate(self.val_loader):      
-            data = data.to(self.device)
-            end_point = self.model(data)
-            l = self.loss_func(end_point, data.y).detach().item()
-            loss += l
-            losses.append(l)
-        loss /= len(self.val_loader)
+        self.model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(self.val_loader):      
+                data = data.to(self.device)
+                end_point = self.model(data)
+                l = self.loss_func(end_point, data.y).detach().item()
+                loss += l
+                losses.append(l)
+            loss /= len(self.val_loader)
         return loss, max(losses)
     
     def test(self):
