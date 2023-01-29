@@ -57,7 +57,7 @@ def files_exist(files):
     return all([osp.exists(f) for f in files])
 
 
-class TactileDataset(Dataset):
+class TactileDataset(Dataset): #myowndataset
     """_summary_
 
         Args:
@@ -74,7 +74,7 @@ class TactileDataset(Dataset):
         transform=None, 
         pre_transform=None, 
         features='all', 
-        temporal_edge_order=True, 
+        temporal_edge_order=False, 
         reset=False, 
         augment=False
         ):
@@ -223,7 +223,9 @@ class TactileDataset(Dataset):
 
             data = Data(x=feature, edge_index=edge_index, pos=pos, y=y)
             
-            transforms = T.Compose([T.Cartesian(cat=False, norm=True), T.LargestConnectedComponents(1)])
+            transforms = T.Compose([T.Cartesian(cat=False, norm=True)
+            #, T.LargestConnectedComponents(1)
+            ])
             data = transforms(data)
 
             if self.pre_filter is not None and not self.pre_filter(data):

@@ -1,0 +1,6 @@
+{
+    "model": "temp_0_lcc_1_2hop_0_model2",
+    "extraction_used": "/home/hussain/tactile/data/extractions/temp_0_lcc_1_2hop_0",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 1.173376148225545
+}

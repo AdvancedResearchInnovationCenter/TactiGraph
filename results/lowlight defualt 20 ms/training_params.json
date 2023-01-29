@@ -1,0 +1,6 @@
+{
+    "model": "lowlight defualt 20 ms",
+    "extraction_used": "/home/hussain/tactile/data/extractions/lowlight_20ms",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 1.1751655861104795
+}

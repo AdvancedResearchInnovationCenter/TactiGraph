@@ -197,3 +197,4 @@ ckpt_*
 state_*
 e2vid_cnn/
 *.ipynb
+*.zip
