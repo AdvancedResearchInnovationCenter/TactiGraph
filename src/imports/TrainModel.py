@@ -155,12 +155,14 @@ class TrainModel():
     
     def test(self):
         loss = 0
-        for i, data in enumerate(self.test_loader):      
-            data = data.to(self.device)
-            end_point = self.model(data)
+        self.model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(self.test_loader):      
+                data = data.to(self.device)
+                end_point = self.model(data)
 
-            loss += self.loss_func(end_point, data.y).detach().item()
-        loss /= len(self.test_data)
+                loss += self.loss_func(end_point, data.y).detach().item()
+            loss /= len(self.test_data)
         return loss
 
     def augment(self, batch):

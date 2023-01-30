@@ -29,6 +29,21 @@ class JitterEvents(EventArrayAugmentation):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(max_delta_x={self.max_delta_x})"
 
+class JitterTemporal(EventArrayAugmentation):
+    
+    def __init__(self, dt = 1e6, stackable=False) -> None:
+        self.dt = dt
+        super().__init__(stackable)
+
+    def augment(self, ev_arr, label):
+        ev_arr = np.array(ev_arr)
+        jitter = self.dt * np.random.randint(-1, 2, size=(len(ev_arr)))
+        ev_arr[:, 2] += jitter
+        return ev_arr, label
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(dt={self.dt})"
+
 
 class RotateEvents(EventArrayAugmentation):
 
