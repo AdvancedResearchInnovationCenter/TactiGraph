@@ -210,7 +210,7 @@ class ExtractContactCases:
             vote = []
             for fil in self.event_array_filters:
                 vote.append(fil.filter(sample['events'], sample['case']))
-                
+
             if np.logical_and(vote):
                 new_samples[f'sample_{i}']
                 i += 1
@@ -221,7 +221,7 @@ class ExtractContactCases:
 
     def _save(self, samples):
         self.assure()
-        self.filter(samples)
+        samples = self.filter(samples)
         if not self.outdir.exists():
             self.outdir.mkdir(parents=True)
 
