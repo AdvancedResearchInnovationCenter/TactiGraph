@@ -212,7 +212,7 @@ class ExtractContactCases:
                 vote.append(fil.filter(sample['events'], sample['case']))
 
             if sum(vote) == len(vote):
-                new_samples[f'sample_{i}']
+                new_samples[f'sample_{i}'] = sample
                 i += 1
             else: 
                 continue
