@@ -211,7 +211,7 @@ class ExtractContactCases:
             for fil in self.event_array_filters:
                 vote.append(fil.filter(sample['events'], sample['case']))
 
-            if np.logical_and(vote):
+            if sum(vote) == len(vote):
                 new_samples[f'sample_{i}']
                 i += 1
             else: 
