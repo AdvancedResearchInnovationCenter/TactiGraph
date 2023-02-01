@@ -69,6 +69,30 @@ class TrainModel():
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         torch.manual_seed(0)
         np.random.seed(0)
+
+    def get_pbar_postfix(self, epoch, epoch_loss, i):
+        if isinstance(self.loss_func, torch.nn.L1Loss):
+            out = {
+                'train_loss': epoch_loss / (i + 1), 
+                'train_loss_degrees': epoch_loss / (i + 1) * 180/pi, 
+                'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
+                'val_loss_degrees': self.val_losses[epoch - 1] * 180/pi if epoch > 0 else 'na',
+                'max_loss_degree': self.max_losses[epoch - 1] * 180/pi if epoch >0 else 'na',
+                'stdev_loss_deg': self.stdev[epoch - 1] * 180 / pi if epoch >0 else 'na',
+                'lr': self.optimizer.param_groups[0]['lr']
+            }
+        elif isinstance(self.loss_func, torch.nn.MSELoss):
+            out = {
+                'train_loss': epoch_loss / (i + 1), 
+                'train_loss_degrees': np.sqrt(epoch_loss / (i + 1) )* 180/pi, 
+                'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
+                'val_loss_degrees': np.sqrt(self.val_losses[epoch - 1])* 180/pi if epoch > 0 else 'na',
+                'max_loss_degree': np.sqrt(self.max_losses[epoch - 1])* 180/pi if epoch >0 else 'na',
+                'stdev_loss_deg': np.sqrt(self.stdev[epoch - 1])* 180/pi if epoch >0 else 'na',
+                'lr': self.optimizer.param_groups[0]['lr']
+            }
+
+        return out
         
 
     def train(self):
@@ -76,7 +100,7 @@ class TrainModel():
         self.val_losses = []
         self.lr = []
         self.max_losses = []
-
+        self.stdev = []
         name = str(type(self.model)).split('.')[-1][:-2]
         path = Path('results') / name
 
@@ -112,21 +136,17 @@ class TrainModel():
                         lr = self.optimizer.param_groups[0]['lr']
 
                         epoch_loss += loss.detach().item()
-                    
-                        tepoch.set_postfix({
-                            'train_loss': epoch_loss / (i + 1), 
-                            'train_loss_degrees': epoch_loss / (i + 1) * 180/pi, 
-                            'val_loss': self.val_losses[epoch - 1] if epoch > 0 else 'na',
-                            'val_loss_degrees': self.val_losses[epoch - 1] * 180/pi if epoch > 0 else 'na',
-                            'max_loss_degree': self.max_losses[epoch - 1] * 180/pi if epoch >0 else 'na',
-                            'lr': lr
-                            })
+                        
+                        pfix = self.get_pbar_postfix(epoch, epoch_loss, i)
+
+                        tepoch.set_postfix(pfix)
 
                 #self.scheduler.step(val_loss)
                 epoch_loss /= i + 1
-                val_loss, max_loss = self.validate()
+                val_loss, max_loss, stdev_loss = self.validate()
                 self.model.train()
                 self.max_losses.append(max_loss)
+                self.stdev.append(stdev_loss)
                 tepoch.set_postfix({'train_loss': epoch_loss, 'val_loss': val_loss})
                 self.train_losses.append(epoch_loss)
                 self.val_losses.append(val_loss)
@@ -151,7 +171,7 @@ class TrainModel():
                 loss += l
                 losses.append(l)
             loss /= len(self.val_loader)
-        return loss, max(losses)
+        return loss, max(losses), np.std(losses)
     
     def test(self):
         loss = 0

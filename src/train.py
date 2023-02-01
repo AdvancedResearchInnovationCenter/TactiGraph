@@ -30,7 +30,7 @@ from models.modules import model2
 
 #rm -rf ../data/temp_0_lcc_1_2hop_0/{test,train,val}/processed/*.pt
 model = model2().cuda()
-#import torch
+import torch
 #model.load_state_dict(torch.load('/home/hussain/tactile/results/temp_0_lcc_1_2hop_0_model2/ckpt_150'))
 tm = TrainModel(
     '../data/extractions/temp_0_lcc_1_2hop_0_jitter_50microseconds/', 
@@ -42,6 +42,7 @@ tm = TrainModel(
     experiment_name='temp_0_lcc_1_2hop_0_jitter_50microseconds', 
     desc='temp_0_lcc_1_2hop_0_jitter_1microseconds',
     merge_test_val=False,
+    loss_func=torch.nn.MSELoss()
     
 )
 
