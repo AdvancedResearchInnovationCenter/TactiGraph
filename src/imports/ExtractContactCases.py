@@ -31,6 +31,7 @@ class ExtractContactCases:
         center = (180, 117),
         circle_rad=85,
         event_array_augmentations = [],
+        event_array_filters = [],
         keep_interm = False
         ):
         self.outdir = Path(outdir).resolve()
@@ -49,6 +50,7 @@ class ExtractContactCases:
         self.case_span = case_span
         self.keep_interm = keep_interm
         self.event_array_augmentations = event_array_augmentations if isinstance(event_array_augmentations, list) else [event_array_augmentations]
+        self.event_array_filters = event_array_filters if isinstance(event_array_filters, list) else [event_array_filters]
 
         if not self.tactile_bag.is_parsed():
             self.tactile_bag.parse_exception()
@@ -83,7 +85,8 @@ class ExtractContactCases:
             'N_examples': N_examples,
             'possible_angles': possible_angles,
             'theta': theta,
-            'augmentations': [str(aug) for aug in self.event_array_augmentations]
+            'augmentations': [str(aug) for aug in self.event_array_augmentations],
+            'filters': [str(fil) for fil in self.event_array_filters]
         }
         
 
@@ -200,9 +203,26 @@ class ExtractContactCases:
         print(desired_n_tot_cases, len(self.cases))
         assert desired_n_tot_cases == len(self.cases)
 
+    def filter(self, samples):
+        new_samples = {}
+        i = 1
+        for s_idx, sample in samples.items():
+            vote = []
+            for fil in self.event_array_filters:
+                vote.append(fil.filter(sample['events'], sample['case']))
+
+            if sum(vote) == len(vote):
+                print(i)
+                new_samples[f'sample_{i}'] = sample
+                i += 1
+            else: 
+                continue
+        return new_samples
+
 
     def _save(self, samples):
         self.assure()
+        samples = self.filter(samples)
         if not self.outdir.exists():
             self.outdir.mkdir(parents=True)
 
