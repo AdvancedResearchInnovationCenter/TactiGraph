@@ -1,0 +1,6 @@
+{
+    "model": "temp_0_lcc_1_2hop_0_jitter_1px 20 ms model2",
+    "extraction_used": "/home/hussain/tactile/data/extractions/temp_0_lcc_1_2hop_0_jitter_1px",
+    "n_epochs": 300,
+    "final_val_loss_degrees": 3.3899014211277345
+}

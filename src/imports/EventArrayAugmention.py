@@ -37,9 +37,9 @@ class JitterTemporal(EventArrayAugmentation):
 
     def augment(self, ev_arr, label):
         ev_arr = np.array(ev_arr)
-        jitter = self.dt * np.random.randint(-1, 2, size=(len(ev_arr)))
-        ev_arr[:, 2] += jitter
-        return ev_arr, label
+        jitter = self.dt * np.random.randn(10000)
+        ev_arr[:, 2] = ev_arr[:, 2] + jitter
+        return ev_arr.tolist(), label
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(dt={self.dt})"
