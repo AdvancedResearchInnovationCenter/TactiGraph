@@ -198,3 +198,9 @@ state_*
 e2vid_cnn/
 *.ipynb
 *.zip
+.jupyter/
+3DEvents_and_ProjectionFrame/Events_and_ProjectionFrame.m
+3DEvents_and_ProjectionFrame/RemoveWhiteSpace.m
+results/pl/*
+src/lightning_logs/*
+gnn4vbts_paper/*
