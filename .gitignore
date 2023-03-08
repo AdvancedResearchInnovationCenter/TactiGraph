@@ -204,3 +204,4 @@ e2vid_cnn/
 results/pl/*
 src/lightning_logs/*
 gnn4vbts_paper/*
+results/*

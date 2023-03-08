@@ -107,7 +107,7 @@ class TrainModel():
         for epoch in trange(self.n_epochs, desc='training', unit='epoch'):
             #bunny(epoch)
             epoch_loss = 0
-            
+            """
             if (epoch == 25):
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = 0.001
@@ -119,7 +119,7 @@ class TrainModel():
             if epoch == 200:
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = 0.00001
-                    
+                    """
             lr = self.optimizer.param_groups[0]['lr']
             self.lr.append(lr)
             val_loss = torch.inf
