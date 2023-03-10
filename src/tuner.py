@@ -140,7 +140,7 @@ def train_cifar(config, checkpoint_dir=None, data_dir=None):
     tm = TrainModel(
         '/media/hussain/drive1/tactile-data/extractions/morethan3500ev_lessthan_9deg', 
         net, 
-        lr=0.001, 
+        lr=0.0001, 
         features='pol', 
         batch=6, 
         n_epochs=1000, 
@@ -154,7 +154,7 @@ def train_cifar(config, checkpoint_dir=None, data_dir=None):
     val_loader = tm.val_loader
 
     val_losses = []
-    for epoch in trange(300):  # loop over the dataset multiple times
+    for epoch in trange(500):  # loop over the dataset multiple times
         running_loss = 0.0
         epoch_steps = 0
         with tqdm(train_loader, unit="batch") as tepoch:
@@ -212,7 +212,7 @@ def train_cifar(config, checkpoint_dir=None, data_dir=None):
                 val_loss += loss.cpu().numpy()
                 val_steps += 1
 
-        val_loss /= val_steps
+        val_loss /= i+1
             
         val_losses.append(val_loss)
 
@@ -220,7 +220,7 @@ def train_cifar(config, checkpoint_dir=None, data_dir=None):
             path = os.path.join(checkpoint_dir, "checkpoint")
             torch.save((net.state_dict(), tm.optimizer.state_dict()), path)
 
-        tune.report(loss=(val_loss / val_steps), accuracy=correct / total)
+        tune.report(loss=(val_loss ))
     print("Finished Training")
 
 
@@ -237,7 +237,7 @@ def main(num_samples=10, max_num_epochs=300, gpus_per_trial=2):
         metric="loss",
         mode="min",
         max_t=max_num_epochs,
-        grace_period=1,
+        grace_period=75,
         reduction_factor=2)
     reporter = CLIReporter(
         # parameter_columns=["l1", "l2", "lr", "batch_size"],
@@ -254,22 +254,16 @@ def main(num_samples=10, max_num_epochs=300, gpus_per_trial=2):
     print("Best trial config: {}".format(best_trial.config))
     print("Best trial final validation loss: {}".format(
         best_trial.last_result["loss"]))
-    print("Best trial final validation accuracy: {}".format(
-        best_trial.last_result["accuracy"]))
 
-    best_trained_model = model2(**best_trial.config["l1"])
+    best_trained_model = model2(**best_trial.config)
+    print(best_trained_model)
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
     best_trained_model.to(device)
 
-    best_checkpoint_dir = best_trial.checkpoint.value
-    model_state, optimizer_state = torch.load(os.path.join(
-        best_checkpoint_dir, "checkpoint"))
-    best_trained_model.load_state_dict(model_state)
-
 
 
 if __name__ == "__main__":
     # You can change the number of GPUs per trial here:
-    main(num_samples=1, max_num_epochs=1, gpus_per_trial=1)
+    main(num_samples=72, max_num_epochs=500, gpus_per_trial=1)
