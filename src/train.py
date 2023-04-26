@@ -1,7 +1,7 @@
 from imports.TactileBag import TactileBag
 from imports.EventArrayAugmention import JitterEvents, RotateEvents, JitterTemporal
 from torch_geometric import seed_everything
-from torch_geometric.transforms import Distance
+from torch_geometric.transforms import Distance, RandomJitter, Compose, Cartesian
 seed_everything(0)
 
 from tuner import model2
@@ -30,29 +30,20 @@ from imports.TrainModel import TrainModel
 #rm -rf ../data/temp_0_lcc_1_2hop_0/{test,train,val}/processed/*.pt
 #model = model3().cuda()
 import torch
-transform = Distance(cat=False)
-model = model2(**{
-  "more_block": False,
-  "more_layer": False,
-  "pooling_after_conv2": False,
-  "pooling_outputs": 64,
-  "pooling_size": [
-    0.023121387283236993,
-    0.011538461538461539
-  ]
-}).cuda()
+transform = Compose([RandomJitter((0.003, 0.003, 0)), Cartesian(cat=False, norm=True)])
+model = model2().cuda()
 #model.load_state_dict(torch.load('/home/hussain/tactile/results/hpc_ymak_filtered/state_dict', map_location='cuda'))
 tm = TrainModel(
-    '/media/hussain/drive1/tactile-data/extractions/morethan3500ev_lessthan_9deg', 
+    '../data/bags/data2/extractions/online', 
     model, 
     lr=0.001, 
     features='pol', 
     batch=4, 
     n_epochs=2000, 
     experiment_name='tuner st', 
-    desc='morethan3500ev_lessthan_9deg_model_3',
+    desc='temporal shuffle augment',
     merge_test_val=False,
-    
+    transform=transform
 )
 
 tm.train()
